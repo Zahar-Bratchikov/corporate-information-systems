@@ -1,0 +1,33 @@
+@startuml c4-components-backend
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Диаграмма компонентов — контейнер API Backend (C# / ASP.NET Core)
+
+Container_Boundary(api, "API Backend") {
+    Component(auth, "AuthController", "ASP.NET Core Web API", "Вход/выход, проверка сессии, таймаут")
+    Component(projects, "ProjectController", "ASP.NET Core Web API", "CRUD проектов, валидация")
+    Component(tasks, "TaskController", "ASP.NET Core Web API", "CRUD задач, назначение исполнителей, привязка к проекту/спринту")
+    Component(users, "UserController", "ASP.NET Core Web API", "Управление пользователями и ролями")
+    Component(sprints, "SprintController", "ASP.NET Core Web API", "CRUD спринтов/итераций")
+    Component(reports, "ReportController", "ASP.NET Core Web API", "Запрос отчётов, выбор формата (DOCX/XLSX/PDF)")
+    Component(reportService, "ReportService", "C#", "Формирование пяти отчётов; экспорт: Open XML / EPPlus / QuestPDF")
+    Component(authService, "AuthService", "C#", "Проверка логина/пароля, роли, разграничение доступа (ASP.NET Core Identity)")
+    Component(projectService, "ProjectService", "C#", "Бизнес-логика проектов, валидация")
+    Component(taskService, "TaskService", "C#", "Бизнес-логика задач, назначения, связи")
+    ComponentDb(repository, "DbContext / репозитории", "Entity Framework Core", "Доступ к БД: проекты, задачи, пользователи, спринты")
+}
+
+Container_Ext(db, "База данных", "PostgreSQL", "Хранение данных")
+
+Rel(auth, authService, "Использует")
+Rel(projects, projectService, "Использует")
+Rel(tasks, taskService, "Использует")
+Rel(users, authService, "Использует")
+Rel(reports, reportService, "Использует")
+Rel(projectService, repository, "Чтение/запись")
+Rel(taskService, repository, "Чтение/запись")
+Rel(authService, repository, "Чтение")
+Rel(reportService, repository, "Чтение")
+Rel(repository, db, "SQL")
+
+@enduml

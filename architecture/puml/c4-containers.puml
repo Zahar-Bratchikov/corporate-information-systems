@@ -1,0 +1,18 @@
+@startuml c4-containers
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Диаграмма контейнеров — ИС УПЗ IT
+
+Person(user, "Сотрудник IT", "Пользователь системы")
+
+System_Boundary(system, "ИС УПЗ IT") {
+    Container(web, "Веб-приложение", "HTML/CSS/JavaScript, SPA", "Интерфейс пользователя: формы, списки, отчёты, авторизация")
+    Container(api, "API Backend", "REST API, Java/Spring или Node.js", "Бизнес-логика, авторизация, CRUD, генерация отчётов")
+    ContainerDb(db, "База данных", "PostgreSQL / MySQL", "Хранение проектов, задач, пользователей, спринтов, справочников")
+}
+
+Rel(user, web, "Работает с", "HTTPS")
+Rel(web, api, "Вызовы API", "HTTPS/JSON")
+Rel(api, db, "Чтение/запись", "JDBC/TCP")
+
+@enduml

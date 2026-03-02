@@ -1,0 +1,67 @@
+@startuml use-case
+!theme plain
+top to bottom direction
+skinparam packageStyle rectangle
+skinparam actorStyle stick
+skinparam defaultFontSize 12
+skinparam Padding 8
+
+title Use Case — ИС УПЗ IT
+
+' Акторы
+actor "Администратор" as Admin
+actor "Руководитель\nпроекта / Тимлид" as PM
+actor "Разработчик\n/ QA" as Dev
+actor "Наблюдатель" as Obs
+
+' Система
+rectangle "ИС УПЗ IT" {
+
+  package "Авторизация" {
+    usecase "Вход в систему" as UC_Login
+    usecase "Выход из системы" as UC_Logout
+  }
+
+  package "Работа с данными" {
+    usecase "Просмотр проектов\nи задач" as UC_View
+    usecase "Управление пользователями\nи справочниками" as UC_Users
+    usecase "Управление проектами,\nзадачами и спринтами" as UC_Data
+    usecase "Редактирование\nсвоих задач" as UC_MyTasks
+  }
+
+  package "Отчёты" {
+    usecase "Формирование отчётов\n(Word, Excel, PDF)" as UC_Reports
+  }
+}
+
+' Связи: общие для всех ролей
+Admin --> UC_Login
+Admin --> UC_Logout
+Admin --> UC_View
+PM   --> UC_Login
+PM   --> UC_Logout
+PM   --> UC_View
+Dev  --> UC_Login
+Dev  --> UC_Logout
+Dev  --> UC_View
+Obs  --> UC_Login
+Obs  --> UC_Logout
+Obs  --> UC_View
+
+' Связи: только Администратор
+Admin --> UC_Users
+Admin --> UC_Data
+Admin --> UC_Reports
+
+' Связи: Руководитель проекта / Тимлид
+PM --> UC_Data
+PM --> UC_Reports
+
+' Связи: Разработчик / QA
+Dev --> UC_MyTasks
+Dev --> UC_Reports
+
+' Связи: Наблюдатель
+Obs --> UC_Reports
+
+@enduml

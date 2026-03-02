@@ -1,0 +1,34 @@
+@startuml sequence
+!theme plain
+title Диаграмма последовательности: формирование отчёта по статусам IT-проектов (Руководитель проекта)
+
+actor "Руководитель\nпроекта" as User
+participant "Веб-приложение\n(контейнер)" as Web
+participant "ReportController\n(компонент)" as RC
+participant "ReportService\n(компонент)" as RS
+participant "Repository\n(компонент)" as Repo
+database "База данных\n(контейнер)" as DB
+
+User -> Web: Выбор отчёта «Статусы IT-проектов», формат PDF
+activate Web
+Web -> RC: GET /api/reports/project-statuses?format=pdf
+activate RC
+RC -> RS: generateProjectStatusReport(format)
+activate RS
+RS -> Repo: getProjectsWithTaskStats()
+activate Repo
+Repo -> DB: SELECT проекты + агрегаты по задачам
+activate DB
+DB --> Repo: результат
+deactivate DB
+Repo --> RS: список проектов с метриками
+deactivate Repo
+RS -> RS: Расчёт % выполнения, формирование PDF
+RS --> RC: byte[] (PDF)
+deactivate RS
+RC --> Web: PDF (application/pdf)
+deactivate RC
+Web --> User: Скачивание файла отчёта
+deactivate Web
+
+@enduml

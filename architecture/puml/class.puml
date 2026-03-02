@@ -1,0 +1,118 @@
+@startuml class
+!theme plain
+skinparam classAttributeIconSize 0
+
+package "Сущности предметной области" {
+  class Project {
+    - id: Long
+    - code: String
+    - name: String
+    - responsibleId: Long
+    - releaseDateFrom: LocalDate
+    - releaseDateTo: LocalDate
+    - createdAt: Instant
+    - updatedAt: Instant
+    + getId(): Long
+    + getCode(): String
+    + getName(): String
+    + getResponsible(): User
+    + getTasks(): List<Task>
+    + setCode(String): void
+    + setName(String): void
+    + setResponsible(User): void
+  }
+
+  class Task {
+    - id: Long
+    - title: String
+    - type: TaskType
+    - priorityId: Long
+    - statusId: Long
+    - deadline: LocalDate
+    - projectId: Long
+    - sprintId: Long
+    - createdAt: Instant
+    - updatedAt: Instant
+    + getId(): Long
+    + getTitle(): String
+    + getType(): TaskType
+    + getProject(): Project
+    + getAssignee(): User
+    + getStatus(): Status
+    + getPriority(): Priority
+    + getSprint(): Sprint
+    + setAssignee(User): void
+    + setStatus(Status): void
+    + isOverdue(): boolean
+    + getDaysOverdue(): int
+  }
+
+  class User {
+    - id: Long
+    - login: String
+    - passwordHash: String
+    - fullName: String
+    - role: Role
+    - createdAt: Instant
+    + getId(): Long
+    + getLogin(): String
+    + getFullName(): String
+    + getRole(): Role
+    + checkPassword(String): boolean
+    + getAssignedTasks(): List<Task>
+  }
+
+  class Sprint {
+    - id: Long
+    - name: String
+    - startDate: LocalDate
+    - endDate: LocalDate
+    - projectId: Long
+    + getId(): Long
+    + getName(): String
+    + getTasks(): List<Task>
+  }
+
+  class Status {
+    - id: Long
+    - name: String
+    - code: String
+    + getId(): Long
+    + getName(): String
+  }
+
+  class Priority {
+    - id: Long
+    - name: String
+    - level: int
+    + getId(): Long
+    + getName(): String
+  }
+
+  enum TaskType {
+    FEATURE
+    BUG
+    TECHNICAL
+  }
+
+  enum Role {
+    ADMIN
+    PM_TEAMLEAD
+    DEVELOPER_QA
+    OBSERVER
+  }
+}
+
+package "Связи" {
+  Project "1" *-- "0..*" Task : содержит
+  User "1" -- "0..*" Task : назначен на
+  User "1" -- "0..*" Project : ответственный
+  Sprint "1" -- "0..*" Task : включает
+  Project "1" -- "0..*" Sprint : спринты
+  Status "1" -- "0..*" Task : статус
+  Priority "1" -- "0..*" Task : приоритет
+  Task ..> TaskType : тип
+  User ..> Role : роль
+}
+
+@enduml
