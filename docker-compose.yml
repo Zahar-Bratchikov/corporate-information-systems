@@ -1,0 +1,58 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: upzit
+      POSTGRES_PASSWORD: upzit_secret
+      POSTGRES_DB: upzit
+    volumes:
+      - ./database/init:/docker-entrypoint-initdb.d
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U upzit -d upzit"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - upzit_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=upzit;Username=upzit;Password=upzit_secret"
+      Jwt__Key: "UpzIt-Super-Secret-Key-For-JWT-Min32Chars!"
+      Jwt__Issuer: "UpzIt.Api"
+      Jwt__Audience: "UpzIt.Client"
+      Jwt__ExpirationMinutes: "60"
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - upzit_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_URL: ""
+    ports:
+      - "18080:80"
+    depends_on:
+      - backend
+    networks:
+      - upzit_net
+
+volumes:
+  postgres_data:
+
+networks:
+  upzit_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24

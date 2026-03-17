@@ -1,0 +1,61 @@
+@startuml use-case
+!theme plain
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle stick
+skinparam defaultFontSize 12
+skinparam Padding 10
+skinparam ArrowThickness 1
+skinparam linetype ortho
+
+title Use Case — ИС УПЗ IT
+
+' Базовый актор: общие прецеденты для всех ролей (вход, выход, просмотр, отчёты)
+actor "Сотрудник IT" as Base
+
+' Специализированные роли
+actor "Администратор" as Admin
+actor "Руководитель\nпроекта / Тимлид" as PM
+actor "Разработчик\n/ QA" as Dev
+actor "Наблюдатель" as Obs
+
+rectangle "ИС УПЗ IT" {
+  package "Общие для всех" {
+    usecase "Вход в систему" as UC_Login
+    usecase "Выход из системы" as UC_Logout
+    usecase "Просмотр проектов\nи задач" as UC_View
+    usecase "Формирование отчётов" as UC_Reports
+  }
+  package "По ролям" {
+    usecase "Управление пользователями\nи справочниками" as UC_Users
+    usecase "Управление проектами,\nзадачами и спринтами" as UC_Data
+    usecase "Редактирование\nсвоих задач" as UC_MyTasks
+  }
+}
+
+' Наследование: каждая роль — разновидность Сотрудника IT
+Admin --|> Base
+PM --|> Base
+Dev --|> Base
+Obs --|> Base
+
+' Только базовый актор связан с общими прецедентами (линии не дублируются)
+Base -- UC_Login
+Base -- UC_Logout
+Base -- UC_View
+Base -- UC_Reports
+
+' Уникальные связи по ролям (по 1–2 линии на роль)
+Admin -- UC_Users
+Admin -- UC_Data
+
+PM -- UC_Data
+
+Dev -- UC_MyTasks
+
+note bottom of UC_Reports
+  Доступно всем ролям
+  (через наследование от «Сотрудник IT»)
+end note
+
+@enduml

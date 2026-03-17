@@ -1,0 +1,69 @@
+.reports {
+  max-width: 720px;
+}
+.reports h1 {
+  margin-bottom: 1rem;
+}
+.reports-error {
+  color: #c0392b;
+  margin-bottom: 1rem;
+}
+.reports-loading {
+  color: #7f8c8d;
+  margin-bottom: 1rem;
+}
+.report-block {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.report-block h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  color: #2c3e50;
+}
+.report-block p {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  color: #7f8c8d;
+}
+.report-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.report-actions button,
+.report-form button {
+  padding: 0.5rem 1rem;
+  background: #3498db;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.report-actions button:hover,
+.report-form button:hover {
+  background: #2980b9;
+}
+.report-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+.report-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  color: #34495e;
+}
+.report-form select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #bdc3c7;
+  border-radius: 4px;
+  min-width: 180px;
+}
