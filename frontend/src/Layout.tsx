@@ -14,21 +14,62 @@ export default function Layout() {
   const showUsers = isAdmin || isManager
 
   return (
-    <div className="layout">
-      <header className="layout-header">
-        <nav className="layout-nav">
-          <NavLink to="/projects" className={({ isActive }) => isActive ? 'active' : ''}>Проекты</NavLink>
-          <NavLink to="/tasks" className={({ isActive }) => isActive ? 'active' : ''}>Задачи</NavLink>
-          {showUsers && <NavLink to="/users" className={({ isActive }) => isActive ? 'active' : ''}>Пользователи</NavLink>}
-          <NavLink to="/sprints" className={({ isActive }) => isActive ? 'active' : ''}>Спринты</NavLink>
-          <NavLink to="/reports" className={({ isActive }) => isActive ? 'active' : ''}>Отчёты</NavLink>
+    <div className="layout upzit-app-shell" data-testid="upzit-app-shell">
+      <header className="layout-header upzit-header">
+        <nav className="layout-nav upzit-main-nav" data-testid="upzit-main-nav" aria-label="Основное меню">
+          <NavLink
+            to="/projects"
+            className={({ isActive }) => `upzit-nav-link ${isActive ? 'active' : ''}`}
+            data-testid="upzit-nav-projects"
+          >
+            Проекты
+          </NavLink>
+          <NavLink
+            to="/tasks"
+            className={({ isActive }) => `upzit-nav-link ${isActive ? 'active' : ''}`}
+            data-testid="upzit-nav-tasks"
+          >
+            Задачи
+          </NavLink>
+          {showUsers && (
+            <NavLink
+              to="/users"
+              className={({ isActive }) => `upzit-nav-link ${isActive ? 'active' : ''}`}
+              data-testid="upzit-nav-users"
+            >
+              Пользователи
+            </NavLink>
+          )}
+          <NavLink
+            to="/sprints"
+            className={({ isActive }) => `upzit-nav-link ${isActive ? 'active' : ''}`}
+            data-testid="upzit-nav-sprints"
+          >
+            Спринты
+          </NavLink>
+          <NavLink
+            to="/reports"
+            className={({ isActive }) => `upzit-nav-link ${isActive ? 'active' : ''}`}
+            data-testid="upzit-nav-reports"
+          >
+            Отчёты
+          </NavLink>
         </nav>
-        <div className="layout-user">
-          <span>{user?.fullName} ({user?.roleName})</span>
-          <button type="button" onClick={handleLogout}>Выход</button>
+        <div className="layout-user upzit-header-user">
+          <span className="upzit-current-user" data-testid="upzit-current-user">
+            {user?.fullName} ({user?.roleName})
+          </span>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="upzit-btn upzit-btn--logout"
+            data-testid="upzit-logout-button"
+          >
+            Выход
+          </button>
         </div>
       </header>
-      <main className="layout-main">
+      <main className="layout-main upzit-main-content" data-testid="upzit-main-content">
         <Outlet />
       </main>
     </div>

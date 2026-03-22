@@ -11,7 +11,7 @@ database "База данных\n(контейнер)" as DB
 
 User -> Web: Выбор отчёта «Статусы IT-проектов», формат PDF
 activate Web
-Web -> RC: GET /api/reports/project-statuses?format=pdf
+Web -> RC: GET /api/reports/it-projects-status-overview?format=pdf
 activate RC
 RC -> RS: generateProjectStatusReport(format)
 activate RS

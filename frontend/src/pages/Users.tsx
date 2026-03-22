@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api'
+import { endpoints } from '../api/endpoints'
 import { useAuth } from '../AuthContext'
 import './Crud.css'
 
@@ -27,8 +28,8 @@ export default function Users() {
   const load = async () => {
     setLoading(true)
     const [rList, rRoles] = await Promise.all([
-      api<User[]>('/api/users'),
-      api<Role[]>('/api/dictionaries/roles')
+      api<User[]>(endpoints.users.list),
+      api<Role[]>(endpoints.referenceData.roles)
     ])
     if (rList.data) setList(rList.data)
     if (rRoles.data) setRoles(rRoles.data)
@@ -55,7 +56,7 @@ export default function Users() {
     e.preventDefault()
     setSaveError('')
     if (modal === 'add') {
-      const res = await api<User>('/api/users', {
+      const res = await api<User>(endpoints.users.create, {
         method: 'POST',
         body: JSON.stringify({
           login: form.login.trim(),
@@ -72,7 +73,7 @@ export default function Users() {
         roleId: parseInt(form.roleId, 10)
       }
       if (form.newPassword) body.newPassword = form.newPassword
-      const res = await api(`/api/users/${editingId}`, { method: 'PUT', body: JSON.stringify(body) })
+      const res = await api(endpoints.users.byId(editingId), { method: 'PUT', body: JSON.stringify(body) })
       if (res.error) setSaveError(res.error)
       else { closeModal(); load() }
     }
@@ -81,38 +82,78 @@ export default function Users() {
   const handleDelete = async (id: number) => {
     if (id === currentUser?.userId) { setSaveError('Нельзя удалить самого себя'); return }
     if (!confirm('Удалить пользователя?')) return
-    await api(`/api/users/${id}`, { method: 'DELETE' })
+    await api(endpoints.users.byId(id), { method: 'DELETE' })
     load()
   }
 
-  if (!isAdmin) return <div className="crud-error">Доступ запрещён</div>
-  if (loading) return <div className="crud-loading">Загрузка…</div>
-  if (error) return <div className="crud-error">{error}</div>
+  if (!isAdmin) {
+    return (
+      <div className="crud-error upzit-error" data-testid="upzit-users-forbidden">
+        Доступ запрещён
+      </div>
+    )
+  }
+  if (loading) {
+    return (
+      <div className="crud-loading upzit-loading" data-testid="upzit-users-loading">
+        Загрузка…
+      </div>
+    )
+  }
+  if (error) {
+    return (
+      <div className="crud-error upzit-error" data-testid="upzit-users-error">
+        {error}
+      </div>
+    )
+  }
 
   return (
-    <div className="crud">
-      <div className="crud-head">
-        <h1>Пользователи</h1>
-        <button type="button" onClick={openAdd}>Добавить пользователя</button>
+    <div className="crud upzit-page upzit-page--users" data-testid="upzit-users-page">
+      <div className="crud-head upzit-page-head">
+        <h1 className="upzit-page-title">Пользователи</h1>
+        <button
+          type="button"
+          onClick={openAdd}
+          className="upzit-btn upzit-btn--add-user"
+          data-testid="upzit-user-add-button"
+        >
+          Добавить пользователя
+        </button>
       </div>
-      <table className="crud-table">
+      <table className="crud-table upzit-table upzit-users-table" data-testid="upzit-users-table">
         <thead>
           <tr>
             <th>Логин</th>
             <th>ФИО</th>
             <th>Роль</th>
-            <th></th>
+            <th aria-label="Действия" />
           </tr>
         </thead>
         <tbody>
           {list.map(u => (
-            <tr key={u.id}>
-              <td>{u.login}</td>
+            <tr key={u.id} data-testid={`upzit-user-row-${u.id}`} className="upzit-user-row">
+              <td data-testid={`upzit-user-cell-login-${u.id}`}>{u.login}</td>
               <td>{u.fullName}</td>
               <td>{u.roleName}</td>
-              <td>
-                <button type="button" className="btn-sm" onClick={() => openEdit(u)}>Изменить</button>
-                <button type="button" className="btn-sm danger" onClick={() => handleDelete(u.id)} disabled={u.id === currentUser?.userId}>Удалить</button>
+              <td className="upzit-row-actions">
+                <button
+                  type="button"
+                  className="btn-sm upzit-btn upzit-btn--edit-user"
+                  data-testid={`upzit-user-edit-${u.id}`}
+                  onClick={() => openEdit(u)}
+                >
+                  Изменить
+                </button>
+                <button
+                  type="button"
+                  className="btn-sm danger upzit-btn upzit-btn--delete-user"
+                  data-testid={`upzit-user-delete-${u.id}`}
+                  onClick={() => handleDelete(u.id)}
+                  disabled={u.id === currentUser?.userId}
+                >
+                  Удалить
+                </button>
               </td>
             </tr>
           ))}
@@ -120,23 +161,85 @@ export default function Users() {
       </table>
 
       {modal && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>{modal === 'add' ? 'Новый пользователь' : 'Редактирование'}</h2>
-            <form onSubmit={handleSubmit}>
-              <label>Логин <input value={form.login} onChange={e => setForm(f => ({ ...f, login: e.target.value }))} required disabled={modal === 'edit'} /></label>
-              {modal === 'add' && <label>Пароль <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required /></label>}
-              {modal === 'edit' && <label>Новый пароль (оставьте пустым, чтобы не менять) <input type="password" value={form.newPassword} onChange={e => setForm(f => ({ ...f, newPassword: e.target.value }))} /></label>}
-              <label>ФИО <input value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} required /></label>
-              <label>Роль
-                <select value={form.roleId} onChange={e => setForm(f => ({ ...f, roleId: e.target.value }))}>
+        <div
+          className="modal-overlay upzit-modal-overlay"
+          data-testid="upzit-user-modal-overlay"
+          onClick={closeModal}
+        >
+          <div
+            className="modal upzit-modal upzit-user-modal"
+            data-testid="upzit-user-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="upzit-user-modal-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 id="upzit-user-modal-title">{modal === 'add' ? 'Новый пользователь' : 'Редактирование'}</h2>
+            <form data-testid="upzit-user-form" onSubmit={handleSubmit}>
+              <label className="upzit-field">
+                Логин
+                <input
+                  value={form.login}
+                  onChange={e => setForm(f => ({ ...f, login: e.target.value }))}
+                  required
+                  disabled={modal === 'edit'}
+                  data-testid="upzit-user-input-login"
+                />
+              </label>
+              {modal === 'add' && (
+                <label className="upzit-field">
+                  Пароль
+                  <input
+                    type="password"
+                    value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    required
+                    data-testid="upzit-user-input-password"
+                  />
+                </label>
+              )}
+              {modal === 'edit' && (
+                <label className="upzit-field">
+                  Новый пароль (оставьте пустым, чтобы не менять)
+                  <input
+                    type="password"
+                    value={form.newPassword}
+                    onChange={e => setForm(f => ({ ...f, newPassword: e.target.value }))}
+                    data-testid="upzit-user-input-new-password"
+                  />
+                </label>
+              )}
+              <label className="upzit-field">
+                ФИО
+                <input
+                  value={form.fullName}
+                  onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))}
+                  required
+                  data-testid="upzit-user-input-fullname"
+                />
+              </label>
+              <label className="upzit-field">
+                Роль
+                <select
+                  value={form.roleId}
+                  onChange={e => setForm(f => ({ ...f, roleId: e.target.value }))}
+                  data-testid="upzit-user-select-role"
+                >
                   {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </select>
               </label>
-              {saveError && <div className="form-error">{saveError}</div>}
-              <div className="modal-actions">
-                <button type="button" onClick={closeModal}>Отмена</button>
-                <button type="submit">Сохранить</button>
+              {saveError && (
+                <div className="form-error upzit-form-error" data-testid="upzit-user-form-error">
+                  {saveError}
+                </div>
+              )}
+              <div className="modal-actions upzit-modal-actions">
+                <button type="button" data-testid="upzit-user-cancel" onClick={closeModal}>
+                  Отмена
+                </button>
+                <button type="submit" data-testid="upzit-user-save">
+                  Сохранить
+                </button>
               </div>
             </form>
           </div>

@@ -5,8 +5,9 @@ using UpzIt.Api.Data;
 
 namespace UpzIt.Api.Controllers;
 
+/// <summary>Справочные данные для форм и отчётов (роли, типы задач, статусы, приоритеты, пользователи).</summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/reference-data")]
 [Authorize]
 public class DictionariesController : ControllerBase
 {

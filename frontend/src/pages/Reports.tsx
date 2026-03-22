@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api, apiBlob } from '../api'
+import { endpoints } from '../api/endpoints'
 import { useAuth } from '../AuthContext'
 import './Reports.css'
 
@@ -16,8 +17,8 @@ export default function Reports() {
   useEffect(() => {
     (async () => {
       const [r1, r2] = await Promise.all([
-        api<User[]>('/api/dictionaries/users'),
-        api<Sprint[]>('/api/sprints')
+        api<User[]>(endpoints.referenceData.usersForSelect),
+        api<Sprint[]>(endpoints.sprints.list())
       ])
       if (r1.data) setUsers(r1.data)
       if (r2.data) setSprints(r2.data)
@@ -41,47 +42,91 @@ export default function Reports() {
   }
 
   return (
-    <div className="reports">
-      <h1>Отчёты</h1>
-      {message && <div className="reports-error">{message}</div>}
-      {loading && <div className="reports-loading">Формирование отчёта…</div>}
+    <div className="reports upzit-page upzit-page--reports" data-testid="upzit-reports-page">
+      <h1 className="upzit-page-title">Отчёты</h1>
+      {message && (
+        <div className="reports-error upzit-reports-error" role="alert" data-testid="upzit-reports-message">
+          {message}
+        </div>
+      )}
+      {loading && (
+        <div className="reports-loading upzit-reports-loading" data-testid="upzit-reports-loading">
+          Формирование отчёта…
+        </div>
+      )}
 
-      <section className="report-block">
+      <section className="report-block upzit-report-block" data-testid="upzit-report-block-it-projects-summary">
         <h2>1. Сводный отчёт по IT-проектам</h2>
         <p>По каждому проекту: наименование, код, даты, ответственный; количество задач всего и по типам (фича, баг, техническая задача).</p>
-        <div className="report-actions">
-          <button type="button" onClick={() => download('/api/reports/projects-summary?format=xlsx')}>Скачать Excel</button>
-          <button type="button" onClick={() => download('/api/reports/projects-summary?format=pdf')}>Скачать PDF</button>
+        <div className="report-actions upzit-report-actions">
+          <button
+            type="button"
+            onClick={() => download(endpoints.reports.itProjectsSummary('xlsx'))}
+            data-testid="upzit-report-it-projects-summary-xlsx"
+          >
+            Скачать Excel
+          </button>
+          <button
+            type="button"
+            onClick={() => download(endpoints.reports.itProjectsSummary('pdf'))}
+            data-testid="upzit-report-it-projects-summary-pdf"
+          >
+            Скачать PDF
+          </button>
         </div>
       </section>
 
-      <section className="report-block">
+      <section className="report-block upzit-report-block" data-testid="upzit-report-block-tasks-by-assignee">
         <h2>2. Отчёт по задачам исполнителя</h2>
         <p>Список задач выбранного исполнителя с итогами: всего, в работе, выполнено, доля выполненных.</p>
         <AssigneeReportForm users={users} onDownload={download} currentUserId={user?.userId} />
       </section>
 
-      <section className="report-block">
+      <section className="report-block upzit-report-block" data-testid="upzit-report-block-overdue-tasks">
         <h2>3. Просроченные задачи</h2>
         <p>Задачи с просроченным сроком, количество дней просрочки, сводка по проектам.</p>
-        <div className="report-actions">
-          <button type="button" onClick={() => download('/api/reports/overdue-tasks?format=xlsx')}>Скачать Excel</button>
-          <button type="button" onClick={() => download('/api/reports/overdue-tasks?format=pdf')}>Скачать PDF</button>
+        <div className="report-actions upzit-report-actions">
+          <button
+            type="button"
+            onClick={() => download(endpoints.reports.overdueTasks('xlsx'))}
+            data-testid="upzit-report-overdue-tasks-xlsx"
+          >
+            Скачать Excel
+          </button>
+          <button
+            type="button"
+            onClick={() => download(endpoints.reports.overdueTasks('pdf'))}
+            data-testid="upzit-report-overdue-tasks-pdf"
+          >
+            Скачать PDF
+          </button>
         </div>
       </section>
 
-      <section className="report-block">
+      <section className="report-block upzit-report-block" data-testid="upzit-report-block-team-workload">
         <h2>4. Сводка по загрузке команды</h2>
         <p>По каждому исполнителю: ФИО, роль; задачи по статусам; доля завершённых. Опционально — фильтр по спринту.</p>
         <TeamWorkloadForm sprints={sprints} onDownload={download} />
       </section>
 
-      <section className="report-block">
+      <section className="report-block upzit-report-block" data-testid="upzit-report-block-it-projects-status">
         <h2>5. Отчёт по статусам IT-проектов</h2>
         <p>По каждому проекту: общее число задач, выполнено, в работе, просрочено, процент выполнения.</p>
-        <div className="report-actions">
-          <button type="button" onClick={() => download('/api/reports/project-statuses?format=docx')}>Скачать Word</button>
-          <button type="button" onClick={() => download('/api/reports/project-statuses?format=pdf')}>Скачать PDF</button>
+        <div className="report-actions upzit-report-actions">
+          <button
+            type="button"
+            onClick={() => download(endpoints.reports.itProjectsStatusOverview('docx'))}
+            data-testid="upzit-report-it-projects-status-docx"
+          >
+            Скачать Word
+          </button>
+          <button
+            type="button"
+            onClick={() => download(endpoints.reports.itProjectsStatusOverview('pdf'))}
+            data-testid="upzit-report-it-projects-status-pdf"
+          >
+            Скачать PDF
+          </button>
         </div>
       </section>
     </div>
@@ -95,25 +140,37 @@ function AssigneeReportForm({ users, onDownload, currentUserId }: { users: User[
   const handleDownload = () => {
     const id = assigneeId || currentUserId || (users.find(u => u.roleName?.includes('Разработчик') || u.roleName?.includes('QA'))?.id ?? users[0]?.id)
     if (!id) return
-    onDownload(`/api/reports/assignee-tasks?assigneeId=${id}&format=${format}`)
+    onDownload(endpoints.reports.tasksByAssignee(Number(id), format))
   }
 
   return (
-    <div className="report-form">
-      <label>Исполнитель
-        <select value={assigneeId} onChange={e => setAssigneeId(e.target.value)}>
+    <div className="report-form upzit-report-form" data-testid="upzit-report-form-assignee">
+      <label className="upzit-field">
+        Исполнитель
+        <select
+          value={assigneeId}
+          onChange={e => setAssigneeId(e.target.value)}
+          data-testid="upzit-report-select-assignee"
+        >
           <option value="">— Выберите —</option>
           {users.map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
         </select>
       </label>
-      <label>Формат
-        <select value={format} onChange={e => setFormat(e.target.value as 'xlsx' | 'docx' | 'pdf')}>
+      <label className="upzit-field">
+        Формат
+        <select
+          value={format}
+          onChange={e => setFormat(e.target.value as 'xlsx' | 'docx' | 'pdf')}
+          data-testid="upzit-report-select-assignee-format"
+        >
           <option value="xlsx">Excel</option>
           <option value="docx">Word</option>
           <option value="pdf">PDF</option>
         </select>
       </label>
-      <button type="button" onClick={handleDownload}>Скачать</button>
+      <button type="button" onClick={handleDownload} data-testid="upzit-report-assignee-download">
+        Скачать
+      </button>
     </div>
   )
 }
@@ -123,27 +180,36 @@ function TeamWorkloadForm({ sprints, onDownload }: { sprints: Sprint[]; onDownlo
   const [format, setFormat] = useState<'xlsx' | 'docx'>('xlsx')
 
   const handleDownload = () => {
-    const path = sprintId
-      ? `/api/reports/team-workload?format=${format}&sprintId=${sprintId}`
-      : `/api/reports/team-workload?format=${format}`
-    onDownload(path)
+    onDownload(endpoints.reports.teamAssigneeWorkload(format, sprintId || undefined))
   }
 
   return (
-    <div className="report-form">
-      <label>Спринт (необязательно)
-        <select value={sprintId} onChange={e => setSprintId(e.target.value)}>
+    <div className="report-form upzit-report-form" data-testid="upzit-report-form-team-workload">
+      <label className="upzit-field">
+        Спринт (необязательно)
+        <select
+          value={sprintId}
+          onChange={e => setSprintId(e.target.value)}
+          data-testid="upzit-report-select-sprint-filter"
+        >
           <option value="">Все</option>
           {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </label>
-      <label>Формат
-        <select value={format} onChange={e => setFormat(e.target.value as 'xlsx' | 'docx')}>
+      <label className="upzit-field">
+        Формат
+        <select
+          value={format}
+          onChange={e => setFormat(e.target.value as 'xlsx' | 'docx')}
+          data-testid="upzit-report-select-team-format"
+        >
           <option value="xlsx">Excel</option>
           <option value="docx">Word</option>
         </select>
       </label>
-      <button type="button" onClick={handleDownload}>Скачать</button>
+      <button type="button" onClick={handleDownload} data-testid="upzit-report-team-workload-download">
+        Скачать
+      </button>
     </div>
   )
 }

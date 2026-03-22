@@ -18,17 +18,20 @@
   gap: 0.5rem;
   flex-wrap: wrap;
 }
-.layout-nav a {
+.layout-nav a,
+.layout-nav .upzit-nav-link {
   color: #bdc3c7;
   text-decoration: none;
   padding: 0.4rem 0.8rem;
   border-radius: 4px;
 }
-.layout-nav a:hover {
+.layout-nav a:hover,
+.layout-nav .upzit-nav-link:hover {
   color: #fff;
   background: rgba(255,255,255,0.1);
 }
-.layout-nav a.active {
+.layout-nav a.active,
+.layout-nav .upzit-nav-link.active {
   color: #fff;
   background: rgba(255,255,255,0.2);
 }

@@ -10,7 +10,7 @@ using TaskEntity = UpzIt.Api.Entities.Task;
 namespace UpzIt.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/tasks")]
 [Authorize]
 public class TasksController : ControllerBase
 {

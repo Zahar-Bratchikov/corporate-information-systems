@@ -8,7 +8,7 @@ using UpzIt.Api.Entities;
 namespace UpzIt.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/sprints")]
 [Authorize]
 public class SprintsController : ControllerBase
 {

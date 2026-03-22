@@ -5,8 +5,11 @@ using UpzIt.Api.Services;
 
 namespace UpzIt.Api.Controllers;
 
+/// <summary>API входа в систему (сессия/JWT).</summary>
+/// <remarks>Два префикса: <c>api/authentication</c> (основной) и <c>api/auth</c> (совместимость со старым фронтом/кэшем).</remarks>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/authentication")]
+[Route("api/auth")]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;

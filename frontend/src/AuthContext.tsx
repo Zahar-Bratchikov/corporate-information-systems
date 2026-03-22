@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { endpoints } from './api/endpoints'
 
 export interface UserInfo {
   token: string
@@ -37,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(loadStored)
 
   const login = useCallback(async (loginName: string, password: string) => {
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch(endpoints.authentication.signIn, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ login: loginName, password }),
