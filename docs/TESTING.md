@@ -1,5 +1,9 @@
 # Автотестирование ИС УПЗ IT
 
+## Unit-тесты
+
+См. **[TESTS.md](./TESTS.md)** — `dotnet test` для API (xUnit) и `npm run test` для фронта (Vitest).
+
 ## Селекторы в UI
 
 - **`data-testid`** — основной способ нахождения элементов в e2e (Playwright, Cypress). Префикс: **`upzit-`**, далее сущность и действие, например:

@@ -78,6 +78,10 @@ npm run dev
 
 Откройте http://localhost:5173. Запросы к `/api` проксируются на backend (настройка в `vite.config.ts`).
 
+## Тесты
+
+- **Unit-тесты (backend + frontend), команды запуска:** [`docs/TESTS.md`](docs/TESTS.md).
+
 ## Документация API и автотесты
 
 - **HTTP API** (пути, методы, query): [`docs/API.md`](docs/API.md).
