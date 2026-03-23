@@ -3,6 +3,8 @@ import { api } from '../api'
 import { endpoints } from '../api/endpoints'
 import { useAuth } from '../AuthContext'
 import './Crud.css'
+import './Kanban.css'
+import TasksKanbanBoard from './TasksKanbanBoard'
 
 interface Task {
   id: number
@@ -42,6 +44,9 @@ export default function Tasks() {
     title: '', dueDate: '', typeId: 1, priorityId: 2, statusId: 1, projectId: '', sprintId: '', assigneeId: ''
   })
   const [saveError, setSaveError] = useState('')
+  const [boardError, setBoardError] = useState('')
+  const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table')
+  const canDelete = user?.roleName === 'Администратор' || user?.roleName === 'Руководитель проекта / Тимлид'
 
   const load = async () => {
     setLoading(true)
@@ -123,6 +128,34 @@ export default function Tasks() {
     load()
   }
 
+  const handleChangeStatus = async (task: Task, newStatusId: number) => {
+    if (!canEdit) return
+    if (task.statusId === newStatusId) return
+
+    setBoardError('')
+    const nextStatusName = statuses.find(s => s.id === newStatusId)?.name ?? task.statusName
+
+    // Оптимистично обновляем карточку на канбане.
+    setList(prev => prev.map(t => (t.id === task.id ? { ...t, statusId: newStatusId, statusName: nextStatusName } : t)))
+
+    const body = {
+      title: task.title.trim(),
+      dueDate: task.dueDate || null,
+      typeId: task.typeId,
+      priorityId: task.priorityId,
+      statusId: newStatusId,
+      projectId: task.projectId,
+      sprintId: task.sprintId ?? null,
+      assigneeId: task.assigneeId ?? null
+    }
+
+    const res = await api<Task>(endpoints.tasks.byId(task.id), { method: 'PUT', body: JSON.stringify(body) })
+    if (res.error) {
+      setBoardError(res.error)
+      load()
+    }
+  }
+
   const projectSprints = form.projectId ? sprints.filter(s => s.projectId === parseInt(form.projectId, 10)) : []
 
   if (loading) {
@@ -144,16 +177,38 @@ export default function Tasks() {
     <div className="crud upzit-page upzit-page--tasks" data-testid="upzit-tasks-page">
       <div className="crud-head upzit-page-head">
         <h1 className="upzit-page-title">Задачи</h1>
-        {canEdit && (
-          <button
-            type="button"
-            onClick={openAdd}
-            className="upzit-btn upzit-btn--add-task"
-            data-testid="upzit-task-add-button"
-          >
-            Добавить задачу
-          </button>
-        )}
+        <div className="upzit-tasks-head-actions">
+          <div className="upzit-view-switch" role="group" aria-label="Режим отображения">
+            <button
+              type="button"
+              className="upzit-view-switch-button upzit-view-switch-button--table"
+              aria-pressed={viewMode === 'table'}
+              onClick={() => setViewMode('table')}
+              data-testid="upzit-tasks-view-table-button"
+            >
+              Таблица
+            </button>
+            <button
+              type="button"
+              className="upzit-view-switch-button upzit-view-switch-button--kanban"
+              aria-pressed={viewMode === 'kanban'}
+              onClick={() => setViewMode('kanban')}
+              data-testid="upzit-tasks-view-kanban-button"
+            >
+              Канбан
+            </button>
+          </div>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={openAdd}
+              className="upzit-btn upzit-btn--add-task"
+              data-testid="upzit-task-add-button"
+            >
+              Добавить задачу
+            </button>
+          )}
+        </div>
       </div>
       <div className="crud-filters upzit-filters" data-testid="upzit-tasks-filters">
         <label className="upzit-field">
@@ -168,55 +223,110 @@ export default function Tasks() {
           </select>
         </label>
       </div>
-      <table className="crud-table upzit-table upzit-tasks-table" data-testid="upzit-tasks-table">
-        <thead>
-          <tr>
-            <th>Название</th>
-            <th>Тип</th>
-            <th>Приоритет</th>
-            <th>Статус</th>
-            <th>Проект</th>
-            <th>Срок</th>
-            <th>Исполнитель</th>
-            {canEdit && <th aria-label="Действия" />}
-          </tr>
-        </thead>
-        <tbody>
-          {list.map(t => (
-            <tr key={t.id} data-testid={`upzit-task-row-${t.id}`} className="upzit-task-row">
-              <td data-testid={`upzit-task-cell-title-${t.id}`}>{t.title}</td>
-              <td>{t.typeName}</td>
-              <td>{t.priorityName}</td>
-              <td>{t.statusName}</td>
-              <td>{t.projectName}</td>
-              <td>{t.dueDate ?? '—'}</td>
-              <td>{t.assigneeName ?? '—'}</td>
-              {canEdit && (
-                <td className="upzit-row-actions">
-                  <button
-                    type="button"
-                    className="btn-sm upzit-btn upzit-btn--edit-task"
-                    data-testid={`upzit-task-edit-${t.id}`}
-                    onClick={() => openEdit(t)}
+      {viewMode === 'kanban' && boardError && (
+        <div className="upzit-kanban-error upzit-error" data-testid="upzit-kanban-error">
+          {boardError}
+        </div>
+      )}
+      {viewMode === 'table' ? (
+        <table className="crud-table upzit-table upzit-tasks-table" data-testid="upzit-tasks-table">
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Тип</th>
+              <th>Приоритет</th>
+              <th>Статус</th>
+              <th>Проект</th>
+              <th>Срок</th>
+              <th>Исполнитель</th>
+              {canEdit && <th aria-label="Действия" />}
+            </tr>
+          </thead>
+          <tbody>
+            {list.map(t => (
+              <tr key={t.id} data-testid={`upzit-task-row-${t.id}`} className="upzit-task-row">
+                <td
+                  data-testid={`upzit-task-cell-title-${t.id}`}
+                  className="upzit-task-cell upzit-task-cell--title"
+                >
+                  {t.title}
+                </td>
+                <td
+                  data-testid={`upzit-task-cell-type-${t.id}`}
+                  className="upzit-task-cell upzit-task-cell--type"
+                >
+                  {t.typeName}
+                </td>
+                <td
+                  data-testid={`upzit-task-cell-priority-${t.id}`}
+                  className="upzit-task-cell upzit-task-cell--priority"
+                >
+                  {t.priorityName}
+                </td>
+                <td
+                  data-testid={`upzit-task-cell-status-${t.id}`}
+                  className="upzit-task-cell upzit-task-cell--status"
+                >
+                  {t.statusName}
+                </td>
+                <td
+                  data-testid={`upzit-task-cell-project-${t.id}`}
+                  className="upzit-task-cell upzit-task-cell--project"
+                >
+                  {t.projectName}
+                </td>
+                <td
+                  data-testid={`upzit-task-cell-due-${t.id}`}
+                  className="upzit-task-cell upzit-task-cell--due"
+                >
+                  {t.dueDate ?? '—'}
+                </td>
+                <td
+                  data-testid={`upzit-task-cell-assignee-${t.id}`}
+                  className="upzit-task-cell upzit-task-cell--assignee"
+                >
+                  {t.assigneeName ?? '—'}
+                </td>
+                {canEdit && (
+                  <td
+                    className="upzit-row-actions upzit-task-row-actions"
+                    data-testid={`upzit-task-row-actions-${t.id}`}
                   >
-                    Изменить
-                  </button>
-                  {(user?.roleName === 'Администратор' || user?.roleName === 'Руководитель проекта / Тимлид') && (
                     <button
                       type="button"
-                      className="btn-sm danger upzit-btn upzit-btn--delete-task"
-                      data-testid={`upzit-task-delete-${t.id}`}
-                      onClick={() => handleDelete(t.id)}
+                      className="btn-sm upzit-btn upzit-btn--edit-task"
+                      data-testid={`upzit-task-edit-${t.id}`}
+                      onClick={() => openEdit(t)}
                     >
-                      Удалить
+                      Изменить
                     </button>
-                  )}
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        className="btn-sm danger upzit-btn upzit-btn--delete-task"
+                        data-testid={`upzit-task-delete-${t.id}`}
+                        onClick={() => handleDelete(t.id)}
+                      >
+                        Удалить
+                      </button>
+                    )}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <TasksKanbanBoard
+          tasks={list}
+          statuses={statuses}
+          canEdit={canEdit}
+          canDelete={canDelete}
+          onOpenEdit={openEdit}
+          onDelete={handleDelete}
+          onChangeStatus={handleChangeStatus}
+        />
+      )}
 
       {modal && (
         <div
@@ -237,6 +347,7 @@ export default function Tasks() {
               <label className="upzit-field">
                 Название
                 <input
+                  className="upzit-task-modal-input upzit-task-modal-input--title"
                   value={form.title}
                   onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                   required
@@ -246,6 +357,7 @@ export default function Tasks() {
               <label className="upzit-field">
                 Тип
                 <select
+                  className="upzit-task-modal-select upzit-task-modal-select--type"
                   value={form.typeId}
                   onChange={e => setForm(f => ({ ...f, typeId: parseInt(e.target.value, 10) }))}
                   data-testid="upzit-task-select-type"
@@ -256,6 +368,7 @@ export default function Tasks() {
               <label className="upzit-field">
                 Приоритет
                 <select
+                  className="upzit-task-modal-select upzit-task-modal-select--priority"
                   value={form.priorityId}
                   onChange={e => setForm(f => ({ ...f, priorityId: parseInt(e.target.value, 10) }))}
                   data-testid="upzit-task-select-priority"
@@ -266,6 +379,7 @@ export default function Tasks() {
               <label className="upzit-field">
                 Статус
                 <select
+                  className="upzit-task-modal-select upzit-task-modal-select--status"
                   value={form.statusId}
                   onChange={e => setForm(f => ({ ...f, statusId: parseInt(e.target.value, 10) }))}
                   data-testid="upzit-task-select-status"
@@ -276,6 +390,7 @@ export default function Tasks() {
               <label className="upzit-field">
                 Проект
                 <select
+                  className="upzit-task-modal-select upzit-task-modal-select--project"
                   value={form.projectId}
                   onChange={e => setForm(f => ({ ...f, projectId: e.target.value, sprintId: '' }))}
                   required
@@ -287,6 +402,7 @@ export default function Tasks() {
               <label className="upzit-field">
                 Спринт
                 <select
+                  className="upzit-task-modal-select upzit-task-modal-select--sprint"
                   value={form.sprintId}
                   onChange={e => setForm(f => ({ ...f, sprintId: e.target.value }))}
                   data-testid="upzit-task-select-sprint"
@@ -298,6 +414,7 @@ export default function Tasks() {
               <label className="upzit-field">
                 Срок
                 <input
+                  className="upzit-task-modal-input upzit-task-modal-input--due-date"
                   type="date"
                   value={form.dueDate}
                   onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
@@ -307,6 +424,7 @@ export default function Tasks() {
               <label className="upzit-field">
                 Исполнитель
                 <select
+                  className="upzit-task-modal-select upzit-task-modal-select--assignee"
                   value={form.assigneeId}
                   onChange={e => setForm(f => ({ ...f, assigneeId: e.target.value }))}
                   data-testid="upzit-task-select-assignee"
@@ -321,10 +439,19 @@ export default function Tasks() {
                 </div>
               )}
               <div className="modal-actions upzit-modal-actions">
-                <button type="button" data-testid="upzit-task-cancel" onClick={closeModal}>
+                <button
+                  type="button"
+                  className="upzit-btn upzit-btn--secondary upzit-task-modal-cancel"
+                  data-testid="upzit-task-cancel"
+                  onClick={closeModal}
+                >
                   Отмена
                 </button>
-                <button type="submit" data-testid="upzit-task-save">
+                <button
+                  type="submit"
+                  className="upzit-btn upzit-btn--primary upzit-task-modal-save"
+                  data-testid="upzit-task-save"
+                >
                   Сохранить
                 </button>
               </div>

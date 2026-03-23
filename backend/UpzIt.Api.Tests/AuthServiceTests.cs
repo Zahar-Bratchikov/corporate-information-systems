@@ -5,6 +5,7 @@ using UpzIt.Api.DTOs;
 using UpzIt.Api.Entities;
 using UpzIt.Api.Services;
 using Xunit;
+using Task = System.Threading.Tasks.Task;
 
 namespace UpzIt.Api.Tests;
 

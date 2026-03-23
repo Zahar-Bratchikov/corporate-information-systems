@@ -1,69 +1,131 @@
 .reports {
-  max-width: 720px;
+  max-width: 800px;
+  background: var(--color-surface);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 1.5rem 1.5rem 2rem;
 }
-.reports h1 {
-  margin-bottom: 1rem;
+
+.reports h1,
+.reports .upzit-page-title {
+  margin: 0 0 0.25rem;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
 }
+
 .reports-error {
-  color: #c0392b;
+  color: var(--color-danger);
   margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  border: 1px solid rgba(220, 38, 38, 0.15);
+  font-weight: 500;
 }
+
 .reports-loading {
-  color: #7f8c8d;
+  color: var(--color-text-muted);
   margin-bottom: 1rem;
+  font-weight: 500;
 }
+
 .report-block {
-  background: #fff;
-  border-radius: 8px;
-  padding: 1.25rem;
+  background: var(--color-surface);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-lg);
+  padding: 1.35rem 1.5rem;
   margin-bottom: 1rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  transition: box-shadow var(--transition), border-color var(--transition);
 }
+
+.report-block:hover {
+  border-color: rgba(37, 99, 235, 0.15);
+  box-shadow: var(--shadow-md), 0 0 0 1px rgba(37, 99, 235, 0.06);
+}
+
 .report-block h2 {
   margin: 0 0 0.5rem;
-  font-size: 1.1rem;
-  color: #2c3e50;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: -0.02em;
 }
+
 .report-block p {
   margin: 0 0 1rem;
-  font-size: 0.9rem;
-  color: #7f8c8d;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  line-height: 1.55;
 }
+
 .report-actions {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+
 .report-actions button,
 .report-form button {
   padding: 0.5rem 1rem;
-  background: #3498db;
+  background: linear-gradient(135deg, var(--color-primary) 0%, #4f46e5 100%);
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+  transition: filter var(--transition), transform var(--transition);
 }
+
 .report-actions button:hover,
 .report-form button:hover {
-  background: #2980b9;
+  filter: brightness(1.06);
+  transform: translateY(-1px);
 }
+
 .report-form {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
   align-items: flex-end;
 }
+
 .report-form label {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.9rem;
-  color: #34495e;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
 }
+
 .report-form select {
-  padding: 0.4rem 0.6rem;
-  border: 1px solid #bdc3c7;
-  border-radius: 4px;
-  min-width: 180px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  min-width: 200px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.report-form select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
 }
