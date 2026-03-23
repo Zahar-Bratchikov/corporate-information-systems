@@ -1,1 +1,46 @@
-/ТЗ_ИС_управления_проектами_и_задачами.md
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*.sublime-*
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/.vite/
+frontend/.turbo/
+frontend/.eslintcache
+frontend/.cache/
+frontend/.vitest/
+frontend/.tmp/
+frontend/.env*
+
+# .NET / Backend
+backend/bin/
+backend/obj/
+backend/.vs/
+backend/.vscode/
+**/bin/
+**/obj/
+*.user
+*.suo
+*.cache
+*.log
+
+# Local config (secrets)
+backend/appsettings*.json
+
+# Docker / compose env overrides
+*.env
+
+# Build artifacts (generic)
+tmp/
+.tmp/
+*.tmp
