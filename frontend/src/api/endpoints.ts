@@ -71,5 +71,20 @@ export const endpoints = {
     /** 5. Метрики статусов задач по IT-проектам */
     itProjectsStatusOverview: (format: 'docx' | 'pdf') =>
       `/api/reports/it-projects-status-overview?format=${format}`,
+    /**
+     * Превью отчётов (JSON) — те же данные, что в файлах; для отображения в UI.
+     * См. `ReportPreviewsController` на backend.
+     */
+    previews: {
+      itProjectsSummary: '/api/reports/previews/it-projects-summary',
+      tasksByAssignee: (assigneeId: number) =>
+        `/api/reports/previews/tasks-by-assignee?assigneeId=${assigneeId}`,
+      overdueTasks: '/api/reports/previews/overdue-tasks',
+      teamAssigneeWorkload: (sprintId?: string) => {
+        const base = '/api/reports/previews/team-assignee-workload'
+        return sprintId ? `${base}?sprintId=${encodeURIComponent(sprintId)}` : base
+      },
+      itProjectsStatusOverview: '/api/reports/previews/it-projects-status-overview',
+    },
   },
 } as const

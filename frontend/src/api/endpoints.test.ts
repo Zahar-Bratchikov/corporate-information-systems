@@ -34,4 +34,10 @@ describe('endpoints', () => {
       '/api/reports/team-assignee-workload?format=docx&sprintId=12'
     )
   })
+
+  it('reports.previews.tasksByAssignee includes assigneeId', () => {
+    expect(endpoints.reports.previews.tasksByAssignee(3)).toBe(
+      '/api/reports/previews/tasks-by-assignee?assigneeId=3'
+    )
+  })
 })

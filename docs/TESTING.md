@@ -24,7 +24,10 @@
 |--------|----------------|
 | Вход | `POST /api/authentication/login` |
 | Справочники | `GET /api/reference-data/{roles\|task-types\|...}` |
-| Отчёты | `GET /api/reports/{it-projects-summary\|tasks-by-assignee\|...}` |
+| Отчёты (файлы) | `GET /api/reports/{it-projects-summary\|tasks-by-assignee\|...}` |
+| Превью отчётов (JSON) | `GET /api/reports/previews/...` (см. `docs/API.md`) |
+
+На странице «Отчёты»: `upzit-report-preview-it-projects-summary`, `upzit-report-preview-panel-it-projects-summary`, `upzit-report-assignee-preview`, `upzit-report-team-workload-preview` и т.п.
 
 ## Рекомендуемый стек e2e
 

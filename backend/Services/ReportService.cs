@@ -7,6 +7,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using UpzIt.Api.Data;
+using UpzIt.Api.DTOs;
 using WordDocument = DocumentFormat.OpenXml.Wordprocessing.Document;
 using QuestPdfDocument = QuestPDF.Fluent.Document;
 
@@ -19,6 +20,12 @@ public interface IReportService
     Task<byte[]> OverdueTasksReportAsync(string format, CancellationToken ct = default);
     Task<byte[]> TeamWorkloadReportAsync(string format, int? sprintId, CancellationToken ct = default);
     Task<byte[]> ProjectStatusesReportAsync(string format, CancellationToken ct = default);
+
+    Task<ItProjectsSummaryPreviewDto> GetItProjectsSummaryPreviewAsync(CancellationToken ct = default);
+    Task<AssigneeTasksPreviewDto> GetAssigneeTasksPreviewAsync(int assigneeId, CancellationToken ct = default);
+    Task<OverdueTasksPreviewDto> GetOverdueTasksPreviewAsync(CancellationToken ct = default);
+    Task<TeamWorkloadPreviewDto> GetTeamWorkloadPreviewAsync(int? sprintId, CancellationToken ct = default);
+    Task<ProjectStatusesPreviewDto> GetProjectStatusesPreviewAsync(CancellationToken ct = default);
 }
 
 public class ReportService : IReportService
@@ -27,9 +34,14 @@ public class ReportService : IReportService
 
     public ReportService(AppDbContext db) => _db = db;
 
-    public async Task<byte[]> ProjectsSummaryAsync(string format, CancellationToken ct = default)
+    public async Task<ItProjectsSummaryPreviewDto> GetItProjectsSummaryPreviewAsync(CancellationToken ct = default)
     {
-        var today = DateOnly.FromDateTime(DateTime.Today);
+        var rows = await GetItProjectsSummaryRowsAsync(ct);
+        return new ItProjectsSummaryPreviewDto(rows);
+    }
+
+    private async Task<List<ItProjectsSummaryRowDto>> GetItProjectsSummaryRowsAsync(CancellationToken ct)
+    {
         var projects = await _db.Projects
             .Include(p => p.Responsible)
             .Select(p => new
@@ -45,62 +57,93 @@ public class ReportService : IReportService
             .GroupBy(t => t.ProjectId)
             .Select(g => new { ProjectId = g.Key, Total = g.Count(), ByType = g.GroupBy(x => x.TypeId).Select(x => new { TypeId = x.Key, Count = x.Count() }) })
             .ToListAsync(ct);
-        var typeNames = await _db.TaskTypes.ToDictionaryAsync(t => t.Id, t => t.Name, ct);
-        var rows = projects.Select(p =>
+        return projects.Select(p =>
         {
             var tc = taskCounts.FirstOrDefault(x => x.ProjectId == p.Id);
             var total = tc?.Total ?? 0;
             var byType = tc?.ByType.ToDictionary(x => x.TypeId, x => x.Count) ?? new Dictionary<int, int>();
-            return new
-            {
+            return new ItProjectsSummaryRowDto(
                 p.Name,
                 p.Code,
-                ReleaseDate = p.ReleaseDate?.ToString("dd.MM.yyyy") ?? "",
-                ResponsibleName = p.ResponsibleName,
-                TotalTasks = total,
-                FeatureCount = byType.GetValueOrDefault(1, 0),
-                BugCount = byType.GetValueOrDefault(2, 0),
-                TechTaskCount = byType.GetValueOrDefault(3, 0)
-            };
+                p.ReleaseDate?.ToString("dd.MM.yyyy") ?? "",
+                p.ResponsibleName,
+                total,
+                byType.GetValueOrDefault(1, 0),
+                byType.GetValueOrDefault(2, 0),
+                byType.GetValueOrDefault(3, 0));
         }).ToList();
+    }
 
+    public async Task<byte[]> ProjectsSummaryAsync(string format, CancellationToken ct = default)
+    {
+        var rows = await GetItProjectsSummaryRowsAsync(ct);
         return format.ToLowerInvariant() switch
         {
-            "xlsx" => BuildProjectsSummaryExcel(rows.Cast<object>()),
-            "pdf" => BuildProjectsSummaryPdf(rows.Cast<object>()),
+            "xlsx" => BuildProjectsSummaryExcel(rows),
+            "pdf" => BuildProjectsSummaryPdf(rows),
             _ => throw new ArgumentException("Формат: xlsx, pdf")
         };
     }
 
-    public async Task<byte[]> AssigneeTasksReportAsync(int assigneeId, string format, CancellationToken ct = default)
+    public async Task<AssigneeTasksPreviewDto> GetAssigneeTasksPreviewAsync(int assigneeId, CancellationToken ct = default)
     {
-        var tasks = await _db.Tasks
+        var data = await GetAssigneeTasksDataAsync(assigneeId, ct);
+        return new AssigneeTasksPreviewDto(
+            data.AssigneeName,
+            data.AssigneeRole,
+            data.Tasks,
+            data.Total,
+            data.InProgress,
+            data.Completed,
+            data.CompletedPct);
+    }
+
+    private async Task<(List<AssigneeTaskRowDto> Tasks, string AssigneeName, string AssigneeRole, int Total, int InProgress, int Completed, double CompletedPct)> GetAssigneeTasksDataAsync(int assigneeId, CancellationToken ct)
+    {
+        var taskEntities = await _db.Tasks
             .Where(t => t.AssigneeId == assigneeId)
             .Include(t => t.Type).Include(t => t.Priority).Include(t => t.Status).Include(t => t.Project)
             .OrderBy(t => t.DueDate)
-            .Select(t => new { t.Title, t.DueDate, TypeName = t.Type.Name, t.Project.Name, StatusName = t.Status.Name, PriorityName = t.Priority.Name })
             .ToListAsync(ct);
+        var tasks = taskEntities.Select(t => new AssigneeTaskRowDto(
+            t.Title,
+            t.Type.Name,
+            t.Project.Name,
+            t.DueDate?.ToString("dd.MM.yyyy") ?? "",
+            t.Status.Name,
+            t.Priority.Name)).ToList();
         var total = tasks.Count;
-        var inProgress = tasks.Count(t => t.StatusName == "В работе");
-        var completed = tasks.Count(t => t.StatusName == "Выполнена");
+        var inProgress = taskEntities.Count(t => t.Status.Name == "В работе");
+        var completed = taskEntities.Count(t => t.Status.Name == "Выполнена");
         var completedPct = total > 0 ? (double)completed / total * 100 : 0;
         var assignee = await _db.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.Id == assigneeId, ct);
         var assigneeName = assignee?.FullName ?? "Исполнитель";
         var assigneeRole = assignee?.Role?.Name ?? "";
+        return (tasks, assigneeName, assigneeRole, total, inProgress, completed, completedPct);
+    }
 
+    public async Task<byte[]> AssigneeTasksReportAsync(int assigneeId, string format, CancellationToken ct = default)
+    {
+        var data = await GetAssigneeTasksDataAsync(assigneeId, ct);
         return format.ToLowerInvariant() switch
         {
-            "xlsx" => BuildAssigneeTasksExcel(tasks.Cast<object>(), assigneeName, assigneeRole, total, inProgress, completed, completedPct),
-            "docx" => BuildAssigneeTasksWord(tasks.Cast<object>(), assigneeName, assigneeRole, total, inProgress, completed, completedPct),
-            "pdf" => BuildAssigneeTasksPdf(tasks.Cast<object>(), assigneeName, assigneeRole, total, inProgress, completed, completedPct),
+            "xlsx" => BuildAssigneeTasksExcel(data.Tasks, data.AssigneeName, data.AssigneeRole, data.Total, data.InProgress, data.Completed, data.CompletedPct),
+            "docx" => BuildAssigneeTasksWord(data.Tasks, data.AssigneeName, data.AssigneeRole, data.Total, data.InProgress, data.Completed, data.CompletedPct),
+            "pdf" => BuildAssigneeTasksPdf(data.Tasks, data.AssigneeName, data.AssigneeRole, data.Total, data.InProgress, data.Completed, data.CompletedPct),
             _ => throw new ArgumentException("Формат: xlsx, docx, pdf")
         };
     }
 
-    public async Task<byte[]> OverdueTasksReportAsync(string format, CancellationToken ct = default)
+    public async Task<OverdueTasksPreviewDto> GetOverdueTasksPreviewAsync(CancellationToken ct = default)
+    {
+        var (tasks, byProject) = await GetOverdueTasksDataAsync(ct);
+        return new OverdueTasksPreviewDto(tasks, byProject);
+    }
+
+    private async Task<(List<OverdueTaskRowDto> Tasks, List<OverdueByProjectDto> ByProject)> GetOverdueTasksDataAsync(CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var tasks = await _db.Tasks
+        var raw = await _db.Tasks
             .Where(t => t.DueDate.HasValue && t.DueDate.Value < today)
             .Include(t => t.Type).Include(t => t.Status).Include(t => t.Project).Include(t => t.Assignee)
             .Select(t => new
@@ -114,17 +157,36 @@ public class ReportService : IReportService
                 DaysOverdue = (today.DayNumber - t.DueDate!.Value.DayNumber)
             })
             .ToListAsync(ct);
-        var byProject = tasks.GroupBy(t => t.ProjectName).Select(g => new { Project = g.Key, Count = g.Count() }).ToList();
+        var tasks = raw.Select(t => new OverdueTaskRowDto(
+            t.Title,
+            t.TypeName,
+            t.ProjectName,
+            t.AssigneeName,
+            t.DueDate?.ToString("dd.MM.yyyy") ?? "",
+            t.StatusName,
+            t.DaysOverdue)).ToList();
+        var byProject = raw.GroupBy(t => t.ProjectName).Select(g => new OverdueByProjectDto(g.Key, g.Count())).ToList();
+        return (tasks, byProject);
+    }
 
+    public async Task<byte[]> OverdueTasksReportAsync(string format, CancellationToken ct = default)
+    {
+        var (tasks, byProject) = await GetOverdueTasksDataAsync(ct);
         return format.ToLowerInvariant() switch
         {
-            "xlsx" => BuildOverdueExcel(tasks.Cast<object>(), byProject.Cast<object>()),
-            "pdf" => BuildOverduePdf(tasks.Cast<object>(), byProject.Cast<object>()),
+            "xlsx" => BuildOverdueExcel(tasks, byProject),
+            "pdf" => BuildOverduePdf(tasks, byProject),
             _ => throw new ArgumentException("Формат: xlsx, pdf")
         };
     }
 
-    public async Task<byte[]> TeamWorkloadReportAsync(string format, int? sprintId, CancellationToken ct = default)
+    public async Task<TeamWorkloadPreviewDto> GetTeamWorkloadPreviewAsync(int? sprintId, CancellationToken ct = default)
+    {
+        var rows = await GetTeamWorkloadRowsAsync(sprintId, ct);
+        return new TeamWorkloadPreviewDto(rows);
+    }
+
+    private async Task<List<TeamWorkloadRowDto>> GetTeamWorkloadRowsAsync(int? sprintId, CancellationToken ct)
     {
         var query = _db.Users.Where(u => u.RoleId == 3).AsQueryable(); // developers/QA
         var assigneeIds = await query.Select(u => u.Id).ToListAsync(ct);
@@ -133,7 +195,7 @@ public class ReportService : IReportService
         var tasks = await tasksQuery
             .Include(t => t.Status).Include(t => t.Assignee!).ThenInclude(a => a!.Role)
             .ToListAsync(ct);
-        var byUser = tasks.GroupBy(t => t.AssigneeId!.Value).Select(g =>
+        return tasks.GroupBy(t => t.AssigneeId!.Value).Select(g =>
         {
             var u = g.First().Assignee!;
             var list = g.ToList();
@@ -141,34 +203,42 @@ public class ReportService : IReportService
             var byStatus = list.GroupBy(x => x.Status.Name).ToDictionary(x => x.Key, x => x.Count());
             var completed = byStatus.GetValueOrDefault("Выполнена", 0);
             var pct = total > 0 ? (double)completed / total * 100 : 0;
-            return new
-            {
-                FullName = u.FullName,
-                RoleName = u.Role?.Name ?? "",
-                New = byStatus.GetValueOrDefault("Новая", 0),
-                InProgress = byStatus.GetValueOrDefault("В работе", 0),
-                InTest = byStatus.GetValueOrDefault("В тестировании", 0),
-                Done = completed,
-                Postponed = byStatus.GetValueOrDefault("Отложена", 0),
-                Total = total,
-                CompletedPct = pct
-            };
+            return new TeamWorkloadRowDto(
+                u.FullName,
+                u.Role?.Name ?? "",
+                byStatus.GetValueOrDefault("Новая", 0),
+                byStatus.GetValueOrDefault("В работе", 0),
+                byStatus.GetValueOrDefault("В тестировании", 0),
+                completed,
+                byStatus.GetValueOrDefault("Отложена", 0),
+                total,
+                pct);
         }).OrderBy(x => x.FullName).ToList();
+    }
 
+    public async Task<byte[]> TeamWorkloadReportAsync(string format, int? sprintId, CancellationToken ct = default)
+    {
+        var byUser = await GetTeamWorkloadRowsAsync(sprintId, ct);
         return format.ToLowerInvariant() switch
         {
-            "xlsx" => BuildTeamWorkloadExcel(byUser.Cast<object>()),
-            "docx" => BuildTeamWorkloadWord(byUser.Cast<object>()),
+            "xlsx" => BuildTeamWorkloadExcel(byUser),
+            "docx" => BuildTeamWorkloadWord(byUser),
             _ => throw new ArgumentException("Формат: xlsx, docx")
         };
     }
 
-    public async Task<byte[]> ProjectStatusesReportAsync(string format, CancellationToken ct = default)
+    public async Task<ProjectStatusesPreviewDto> GetProjectStatusesPreviewAsync(CancellationToken ct = default)
+    {
+        var rows = await GetProjectStatusRowsAsync(ct);
+        return new ProjectStatusesPreviewDto(rows);
+    }
+
+    private async Task<List<ProjectStatusRowDto>> GetProjectStatusRowsAsync(CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
         var projects = await _db.Projects.Include(p => p.Responsible).ToListAsync(ct);
         var taskLists = await _db.Tasks.Include(t => t.Status).GroupBy(t => t.ProjectId).ToListAsync(ct);
-        var rows = projects.Select(p =>
+        return projects.Select(p =>
         {
             var projTasks = taskLists.Where(g => g.Key == p.Id).SelectMany(g => g).ToList();
             var total = projTasks.Count;
@@ -176,35 +246,37 @@ public class ReportService : IReportService
             var inWork = projTasks.Count(t => t.Status.Name == "В работе");
             var overdue = projTasks.Count(t => t.DueDate.HasValue && t.DueDate.Value < today && t.Status.Name != "Выполнена");
             var pct = total > 0 ? (double)done / total * 100 : 0;
-            return new
-            {
+            return new ProjectStatusRowDto(
                 p.Name,
                 p.Code,
-                ResponsibleName = p.Responsible?.FullName ?? "",
-                Total = total,
-                Done = done,
-                InWork = inWork,
-                Overdue = overdue,
-                DonePct = pct
-            };
+                p.Responsible?.FullName ?? "",
+                total,
+                done,
+                inWork,
+                overdue,
+                pct);
         }).ToList();
+    }
 
+    public async Task<byte[]> ProjectStatusesReportAsync(string format, CancellationToken ct = default)
+    {
+        var rows = await GetProjectStatusRowsAsync(ct);
         return format.ToLowerInvariant() switch
         {
-            "docx" => BuildProjectStatusesWord(rows.Cast<object>()),
-            "pdf" => BuildProjectStatusesPdf(rows.Cast<object>()),
+            "docx" => BuildProjectStatusesWord(rows),
+            "pdf" => BuildProjectStatusesPdf(rows),
             _ => throw new ArgumentException("Формат: docx, pdf")
         };
     }
 
-    private static byte[] BuildProjectsSummaryExcel(IEnumerable<object> rows)
+    private static byte[] BuildProjectsSummaryExcel(IReadOnlyList<ItProjectsSummaryRowDto> rows)
     {
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Сводка по проектам");
         ws.Cell(1, 1).Value = "Наименование"; ws.Cell(1, 2).Value = "Код"; ws.Cell(1, 3).Value = "Дата релиза";
         ws.Cell(1, 4).Value = "Ответственный"; ws.Cell(1, 5).Value = "Всего задач"; ws.Cell(1, 6).Value = "Фича"; ws.Cell(1, 7).Value = "Баг"; ws.Cell(1, 8).Value = "Техн. задача";
         int r = 2;
-        foreach (dynamic row in rows)
+        foreach (var row in rows)
         {
             ws.Cell(r, 1).Value = row.Name; ws.Cell(r, 2).Value = row.Code; ws.Cell(r, 3).Value = row.ReleaseDate;
             ws.Cell(r, 4).Value = row.ResponsibleName; ws.Cell(r, 5).Value = row.TotalTasks;
@@ -216,10 +288,9 @@ public class ReportService : IReportService
         return ms.ToArray();
     }
 
-    private static byte[] BuildProjectsSummaryPdf(IEnumerable<object> rows)
+    private static byte[] BuildProjectsSummaryPdf(IReadOnlyList<ItProjectsSummaryRowDto> rows)
     {
         QuestPDF.Settings.License = LicenseType.Community;
-        var list = rows.ToList();
         var doc = QuestPdfDocument.Create(container =>
         {
             container.Page(p =>
@@ -243,16 +314,16 @@ public class ReportService : IReportService
                         h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Баг");
                         h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Техн. задача");
                     });
-                    foreach (dynamic row in list)
+                    foreach (var row in rows)
                     {
-                        t.Cell().Padding(4).Text((string)row.Name);
-                        t.Cell().Padding(4).Text((string)row.Code);
-                        t.Cell().Padding(4).Text((string)row.ReleaseDate);
-                        t.Cell().Padding(4).Text((string)row.ResponsibleName);
-                        t.Cell().Padding(4).Text(((int)row.TotalTasks).ToString());
-                        t.Cell().Padding(4).Text(((int)row.FeatureCount).ToString());
-                        t.Cell().Padding(4).Text(((int)row.BugCount).ToString());
-                        t.Cell().Padding(4).Text(((int)row.TechTaskCount).ToString());
+                        t.Cell().Padding(4).Text(row.Name);
+                        t.Cell().Padding(4).Text(row.Code);
+                        t.Cell().Padding(4).Text(row.ReleaseDate);
+                        t.Cell().Padding(4).Text(row.ResponsibleName);
+                        t.Cell().Padding(4).Text(row.TotalTasks.ToString());
+                        t.Cell().Padding(4).Text(row.FeatureCount.ToString());
+                        t.Cell().Padding(4).Text(row.BugCount.ToString());
+                        t.Cell().Padding(4).Text(row.TechTaskCount.ToString());
                     }
                 });
             });
@@ -261,17 +332,17 @@ public class ReportService : IReportService
     }
 
     private static byte[] BuildAssigneeTasksExcel(
-        IEnumerable<object> tasks, string assigneeName, string roleName,
+        IReadOnlyList<AssigneeTaskRowDto> tasks, string assigneeName, string roleName,
         int total, int inProgress, int completed, double completedPct)
     {
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Задачи исполнителя");
         ws.Cell(1, 1).Value = "Название"; ws.Cell(1, 2).Value = "Тип"; ws.Cell(1, 3).Value = "Проект"; ws.Cell(1, 4).Value = "Срок"; ws.Cell(1, 5).Value = "Статус"; ws.Cell(1, 6).Value = "Приоритет";
         int r = 2;
-        foreach (dynamic t in tasks)
+        foreach (var t in tasks)
         {
-            ws.Cell(r, 1).Value = t.Title; ws.Cell(r, 2).Value = t.TypeName; ws.Cell(r, 3).Value = t.Name;
-            ws.Cell(r, 4).Value = t.DueDate?.ToString("dd.MM.yyyy") ?? ""; ws.Cell(r, 5).Value = t.StatusName; ws.Cell(r, 6).Value = t.PriorityName;
+            ws.Cell(r, 1).Value = t.Title; ws.Cell(r, 2).Value = t.TypeName; ws.Cell(r, 3).Value = t.ProjectName;
+            ws.Cell(r, 4).Value = t.DueDate; ws.Cell(r, 5).Value = t.StatusName; ws.Cell(r, 6).Value = t.PriorityName;
             r++;
         }
         r++; ws.Cell(r, 1).Value = "Итого:"; ws.Cell(r, 2).Value = $"Всего: {total}, В работе: {inProgress}, Выполнено: {completed}, Доля выполненных: {completedPct:F1}%";
@@ -281,7 +352,7 @@ public class ReportService : IReportService
     }
 
     private static byte[] BuildAssigneeTasksWord(
-        IEnumerable<object> tasks, string assigneeName, string roleName,
+        IReadOnlyList<AssigneeTaskRowDto> tasks, string assigneeName, string roleName,
         int total, int inProgress, int completed, double completedPct)
     {
         var table = new Table(new TableProperties(new TableBorders()));
@@ -292,15 +363,15 @@ public class ReportService : IReportService
             new TableCell(new Paragraph(new Run(new Text("Срок")))),
             new TableCell(new Paragraph(new Run(new Text("Статус")))),
             new TableCell(new Paragraph(new Run(new Text("Приоритет"))))));
-        foreach (dynamic t in tasks)
+        foreach (var t in tasks)
         {
             table.AppendChild(new TableRow(
-                new TableCell(new Paragraph(new Run(new Text((string)t.Title)))),
-                new TableCell(new Paragraph(new Run(new Text((string)t.TypeName)))),
-                new TableCell(new Paragraph(new Run(new Text((string)t.Name)))),
-                new TableCell(new Paragraph(new Run(new Text(t.DueDate?.ToString("dd.MM.yyyy") ?? "")))),
-                new TableCell(new Paragraph(new Run(new Text((string)t.StatusName)))),
-                new TableCell(new Paragraph(new Run(new Text((string)t.PriorityName))))));
+                new TableCell(new Paragraph(new Run(new Text(t.Title)))),
+                new TableCell(new Paragraph(new Run(new Text(t.TypeName)))),
+                new TableCell(new Paragraph(new Run(new Text(t.ProjectName)))),
+                new TableCell(new Paragraph(new Run(new Text(t.DueDate)))),
+                new TableCell(new Paragraph(new Run(new Text(t.StatusName)))),
+                new TableCell(new Paragraph(new Run(new Text(t.PriorityName))))));
         }
         var body = new Body(
             new Paragraph(new Run(new Text($"Отчёт по задачам исполнителя: {assigneeName} ({roleName})"))),
@@ -316,7 +387,7 @@ public class ReportService : IReportService
     }
 
     private static byte[] BuildAssigneeTasksPdf(
-        IEnumerable<object> tasks, string assigneeName, string roleName,
+        IReadOnlyList<AssigneeTaskRowDto> tasks, string assigneeName, string roleName,
         int total, int inProgress, int completed, double completedPct)
     {
         QuestPDF.Settings.License = LicenseType.Community;
@@ -337,14 +408,14 @@ public class ReportService : IReportService
                         h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Статус");
                         h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Приоритет");
                     });
-                    foreach (dynamic row in tasks)
+                    foreach (var row in tasks)
                     {
-                        t.Cell().Padding(4).Text((string)row.Title);
-                        t.Cell().Padding(4).Text((string)row.TypeName);
-                        t.Cell().Padding(4).Text((string)row.Name);
-                        t.Cell().Padding(4).Text(((DateOnly?)row.DueDate)?.ToString("dd.MM.yyyy") ?? "");
-                        t.Cell().Padding(4).Text((string)row.StatusName);
-                        t.Cell().Padding(4).Text((string)row.PriorityName);
+                        t.Cell().Padding(4).Text(row.Title);
+                        t.Cell().Padding(4).Text(row.TypeName);
+                        t.Cell().Padding(4).Text(row.ProjectName);
+                        t.Cell().Padding(4).Text(row.DueDate);
+                        t.Cell().Padding(4).Text(row.StatusName);
+                        t.Cell().Padding(4).Text(row.PriorityName);
                     }
                 });
                 p.Footer().AlignCenter().Text($"Всего: {total}, в работе: {inProgress}, выполнено: {completed}, доля выполненных: {completedPct:F1}%");
@@ -353,28 +424,31 @@ public class ReportService : IReportService
         return doc.GeneratePdf();
     }
 
-    private static byte[] BuildOverdueExcel(IEnumerable<object> tasks, IEnumerable<object> byProject)
+    private static byte[] BuildOverdueExcel(IReadOnlyList<OverdueTaskRowDto> tasks, IReadOnlyList<OverdueByProjectDto> byProject)
     {
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Просроченные");
         ws.Cell(1, 1).Value = "Название"; ws.Cell(1, 2).Value = "Тип"; ws.Cell(1, 3).Value = "Проект"; ws.Cell(1, 4).Value = "Исполнитель"; ws.Cell(1, 5).Value = "Дедлайн"; ws.Cell(1, 6).Value = "Статус"; ws.Cell(1, 7).Value = "Дней просрочки";
         int r = 2;
-        foreach (dynamic t in tasks)
+        foreach (var t in tasks)
         {
             ws.Cell(r, 1).Value = t.Title; ws.Cell(r, 2).Value = t.TypeName; ws.Cell(r, 3).Value = t.ProjectName;
-            ws.Cell(r, 4).Value = t.AssigneeName; ws.Cell(r, 5).Value = t.DueDate?.ToString("dd.MM.yyyy"); ws.Cell(r, 6).Value = t.StatusName; ws.Cell(r, 7).Value = t.DaysOverdue;
+            ws.Cell(r, 4).Value = t.AssigneeName; ws.Cell(r, 5).Value = t.DueDate; ws.Cell(r, 6).Value = t.StatusName; ws.Cell(r, 7).Value = t.DaysOverdue;
             r++;
         }
         var ws2 = wb.Worksheets.Add("По проектам");
         ws2.Cell(1, 1).Value = "Проект"; ws2.Cell(1, 2).Value = "Кол-во просроченных";
-        var byProjectList = byProject.ToList();
-        for (int i = 0; i < byProjectList.Count; i++) { var row = (dynamic)byProjectList[i]; ws2.Cell(i + 2, 1).Value = row.Project; ws2.Cell(i + 2, 2).Value = row.Count; }
+        for (int i = 0; i < byProject.Count; i++)
+        {
+            ws2.Cell(i + 2, 1).Value = byProject[i].Project;
+            ws2.Cell(i + 2, 2).Value = byProject[i].Count;
+        }
         using var ms = new MemoryStream();
         wb.SaveAs(ms, false);
         return ms.ToArray();
     }
 
-    private static byte[] BuildOverduePdf(IEnumerable<object> tasks, IEnumerable<object> byProject)
+    private static byte[] BuildOverduePdf(IReadOnlyList<OverdueTaskRowDto> tasks, IReadOnlyList<OverdueByProjectDto> byProject)
     {
         QuestPDF.Settings.License = LicenseType.Community;
         var doc = QuestPdfDocument.Create(c =>
@@ -395,25 +469,25 @@ public class ReportService : IReportService
                         h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Статус");
                         h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Дней просрочки");
                     });
-                    foreach (dynamic row in tasks)
+                    foreach (var row in tasks)
                     {
-                        t.Cell().Padding(4).Text((string)row.Title);
-                        t.Cell().Padding(4).Text((string)row.TypeName);
-                        t.Cell().Padding(4).Text((string)row.ProjectName);
-                        t.Cell().Padding(4).Text((string)row.AssigneeName);
-                        t.Cell().Padding(4).Text(((DateOnly?)row.DueDate)?.ToString("dd.MM.yyyy") ?? "");
-                        t.Cell().Padding(4).Text((string)row.StatusName);
-                        t.Cell().Padding(4).Text(((int)row.DaysOverdue).ToString());
+                        t.Cell().Padding(4).Text(row.Title);
+                        t.Cell().Padding(4).Text(row.TypeName);
+                        t.Cell().Padding(4).Text(row.ProjectName);
+                        t.Cell().Padding(4).Text(row.AssigneeName);
+                        t.Cell().Padding(4).Text(row.DueDate);
+                        t.Cell().Padding(4).Text(row.StatusName);
+                        t.Cell().Padding(4).Text(row.DaysOverdue.ToString());
                     }
                 });
                 p.Content().PaddingVertical(10).Text("Сводка по проектам:").Bold();
                 p.Content().Table(t2 =>
                 {
                     t2.ColumnsDefinition(cd => { cd.RelativeColumn(); cd.ConstantColumn(80); });
-                    foreach (dynamic row in byProject)
+                    foreach (var row in byProject)
                     {
-                        t2.Cell().Padding(4).Text((string)row.Project);
-                        t2.Cell().Padding(4).Text(((int)row.Count).ToString());
+                        t2.Cell().Padding(4).Text(row.Project);
+                        t2.Cell().Padding(4).Text(row.Count.ToString());
                     }
                 });
             });
@@ -421,16 +495,16 @@ public class ReportService : IReportService
         return doc.GeneratePdf();
     }
 
-    private static byte[] BuildTeamWorkloadExcel(IEnumerable<object> byUser)
+    private static byte[] BuildTeamWorkloadExcel(IReadOnlyList<TeamWorkloadRowDto> byUser)
     {
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Загрузка команды");
         ws.Cell(1, 1).Value = "ФИО"; ws.Cell(1, 2).Value = "Роль"; ws.Cell(1, 3).Value = "Новая"; ws.Cell(1, 4).Value = "В работе"; ws.Cell(1, 5).Value = "В тестировании"; ws.Cell(1, 6).Value = "Выполнена"; ws.Cell(1, 7).Value = "Отложена"; ws.Cell(1, 8).Value = "Всего"; ws.Cell(1, 9).Value = "Доля завершённых %";
         int r = 2;
-        foreach (dynamic row in byUser)
+        foreach (var row in byUser)
         {
             ws.Cell(r, 1).Value = row.FullName; ws.Cell(r, 2).Value = row.RoleName;
-            ws.Cell(r, 3).Value = row.New; ws.Cell(r, 4).Value = row.InProgress; ws.Cell(r, 5).Value = row.InTest; ws.Cell(r, 6).Value = row.Done; ws.Cell(r, 7).Value = row.Postponed;
+            ws.Cell(r, 3).Value = row.NewTasks; ws.Cell(r, 4).Value = row.InProgress; ws.Cell(r, 5).Value = row.InTest; ws.Cell(r, 6).Value = row.Done; ws.Cell(r, 7).Value = row.Postponed;
             ws.Cell(r, 8).Value = row.Total; ws.Cell(r, 9).Value = $"{row.CompletedPct:F1}";
             r++;
         }
@@ -439,7 +513,7 @@ public class ReportService : IReportService
         return ms.ToArray();
     }
 
-    private static byte[] BuildTeamWorkloadWord(IEnumerable<object> byUser)
+    private static byte[] BuildTeamWorkloadWord(IReadOnlyList<TeamWorkloadRowDto> byUser)
     {
         var table = new Table(new TableProperties(new TableBorders()));
         table.AppendChild(new TableRow(
@@ -452,18 +526,18 @@ public class ReportService : IReportService
             new TableCell(new Paragraph(new Run(new Text("Отложена")))),
             new TableCell(new Paragraph(new Run(new Text("Всего")))),
             new TableCell(new Paragraph(new Run(new Text("Доля завершённых %"))))));
-        foreach (dynamic row in byUser)
+        foreach (var row in byUser)
         {
             table.AppendChild(new TableRow(
-                new TableCell(new Paragraph(new Run(new Text((string)row.FullName)))),
-                new TableCell(new Paragraph(new Run(new Text((string)row.RoleName)))),
-                new TableCell(new Paragraph(new Run(new Text(((int)row.New).ToString())))),
-                new TableCell(new Paragraph(new Run(new Text(((int)row.InProgress).ToString())))),
-                new TableCell(new Paragraph(new Run(new Text(((int)row.InTest).ToString())))),
-                new TableCell(new Paragraph(new Run(new Text(((int)row.Done).ToString())))),
-                new TableCell(new Paragraph(new Run(new Text(((int)row.Postponed).ToString())))),
-                new TableCell(new Paragraph(new Run(new Text(((int)row.Total).ToString())))),
-                new TableCell(new Paragraph(new Run(new Text(((double)row.CompletedPct).ToString("F1") + "%"))))));
+                new TableCell(new Paragraph(new Run(new Text(row.FullName)))),
+                new TableCell(new Paragraph(new Run(new Text(row.RoleName)))),
+                new TableCell(new Paragraph(new Run(new Text(row.NewTasks.ToString())))),
+                new TableCell(new Paragraph(new Run(new Text(row.InProgress.ToString())))),
+                new TableCell(new Paragraph(new Run(new Text(row.InTest.ToString())))),
+                new TableCell(new Paragraph(new Run(new Text(row.Done.ToString())))),
+                new TableCell(new Paragraph(new Run(new Text(row.Postponed.ToString())))),
+                new TableCell(new Paragraph(new Run(new Text(row.Total.ToString())))),
+                new TableCell(new Paragraph(new Run(new Text(row.CompletedPct.ToString("F1") + "%"))))));
         }
         var body = new Body(
             new Paragraph(new Run(new Text("Сводка по загрузке команды"))),
@@ -477,7 +551,7 @@ public class ReportService : IReportService
         return ms.ToArray();
     }
 
-    private static byte[] BuildProjectStatusesWord(IEnumerable<object> rows)
+    private static byte[] BuildProjectStatusesWord(IReadOnlyList<ProjectStatusRowDto> rows)
     {
         var table = new Table(new TableProperties(new TableBorders()));
         table.AppendChild(new TableRow(
@@ -489,17 +563,17 @@ public class ReportService : IReportService
             new TableCell(new Paragraph(new Run(new Text("В работе")))),
             new TableCell(new Paragraph(new Run(new Text("Просрочено")))),
             new TableCell(new Paragraph(new Run(new Text("% выполнения"))))));
-        foreach (dynamic row in rows)
+        foreach (var row in rows)
         {
             table.AppendChild(new TableRow(
-                new TableCell(new Paragraph(new Run(new Text((string)row.Name)))),
-                new TableCell(new Paragraph(new Run(new Text((string)row.Code)))),
-                new TableCell(new Paragraph(new Run(new Text((string)row.ResponsibleName)))),
-                new TableCell(new Paragraph(new Run(new Text(((int)row.Total).ToString())))),
-                new TableCell(new Paragraph(new Run(new Text(((int)row.Done).ToString())))),
-                new TableCell(new Paragraph(new Run(new Text(((int)row.InWork).ToString())))),
-                new TableCell(new Paragraph(new Run(new Text(((int)row.Overdue).ToString())))),
-                new TableCell(new Paragraph(new Run(new Text(((double)row.DonePct).ToString("F1") + "%"))))));
+                new TableCell(new Paragraph(new Run(new Text(row.Name)))),
+                new TableCell(new Paragraph(new Run(new Text(row.Code)))),
+                new TableCell(new Paragraph(new Run(new Text(row.ResponsibleName)))),
+                new TableCell(new Paragraph(new Run(new Text(row.Total.ToString())))),
+                new TableCell(new Paragraph(new Run(new Text(row.Done.ToString())))),
+                new TableCell(new Paragraph(new Run(new Text(row.InWork.ToString())))),
+                new TableCell(new Paragraph(new Run(new Text(row.Overdue.ToString())))),
+                new TableCell(new Paragraph(new Run(new Text(row.DonePct.ToString("F1") + "%"))))));
         }
         var body = new Body(
             new Paragraph(new Run(new Text("Отчёт по статусам IT-проектов"))),
@@ -513,10 +587,9 @@ public class ReportService : IReportService
         return ms.ToArray();
     }
 
-    private static byte[] BuildProjectStatusesPdf(IEnumerable<object> rows)
+    private static byte[] BuildProjectStatusesPdf(IReadOnlyList<ProjectStatusRowDto> rows)
     {
         QuestPDF.Settings.License = LicenseType.Community;
-        var list = rows.ToList();
         var doc = QuestPdfDocument.Create(c =>
         {
             c.Page(p =>
@@ -536,16 +609,16 @@ public class ReportService : IReportService
                         h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Просрочено");
                         h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("% вып.");
                     });
-                    foreach (dynamic row in list)
+                    foreach (var row in rows)
                     {
-                        t.Cell().Padding(4).Text((string)row.Name);
-                        t.Cell().Padding(4).Text((string)row.Code);
-                        t.Cell().Padding(4).Text((string)row.ResponsibleName);
-                        t.Cell().Padding(4).Text(((int)row.Total).ToString());
-                        t.Cell().Padding(4).Text(((int)row.Done).ToString());
-                        t.Cell().Padding(4).Text(((int)row.InWork).ToString());
-                        t.Cell().Padding(4).Text(((int)row.Overdue).ToString());
-                        t.Cell().Padding(4).Text(((double)row.DonePct).ToString("F1") + "%");
+                        t.Cell().Padding(4).Text(row.Name);
+                        t.Cell().Padding(4).Text(row.Code);
+                        t.Cell().Padding(4).Text(row.ResponsibleName);
+                        t.Cell().Padding(4).Text(row.Total.ToString());
+                        t.Cell().Padding(4).Text(row.Done.ToString());
+                        t.Cell().Padding(4).Text(row.InWork.ToString());
+                        t.Cell().Padding(4).Text(row.Overdue.ToString());
+                        t.Cell().Padding(4).Text(row.DonePct.ToString("F1") + "%");
                     }
                 });
             });

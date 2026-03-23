@@ -19,6 +19,120 @@
   color: var(--color-text);
 }
 
+.reports-intro {
+  margin: 0 0 1.25rem;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  line-height: 1.55;
+  max-width: 52rem;
+}
+
+.report-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.report-actions-row .report-actions {
+  margin-bottom: 0;
+}
+
+.report-btn-secondary {
+  padding: 0.5rem 1rem;
+  background: var(--color-bg-elevated);
+  color: var(--color-primary);
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.report-btn-secondary:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: var(--color-primary);
+}
+
+.report-btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.report-preview {
+  margin-top: 1.25rem;
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  overflow-x: auto;
+}
+
+.report-preview-caption {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: var(--color-text);
+}
+
+.report-preview-summary {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.report-preview-subtitle {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.report-preview-subtitle:first-of-type {
+  margin-top: 0;
+}
+
+.report-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.report-preview-table th,
+.report-preview-table td {
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.report-preview-table th {
+  background: #f1f5f9;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.report-preview-table tbody tr:hover {
+  background: rgba(37, 99, 235, 0.04);
+}
+
+.report-preview-table--compact {
+  max-width: 420px;
+}
+
+.report-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .reports-error {
   color: var(--color-danger);
   margin-bottom: 1rem;

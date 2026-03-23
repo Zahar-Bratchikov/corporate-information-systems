@@ -92,6 +92,20 @@
 
 ---
 
+## Превью отчётов (JSON, для UI)
+
+Те же данные, что используются при генерации файлов; ответ — JSON (camelCase). Все методы — **GET**, требуется JWT.
+
+| Путь | Описание | Параметры |
+|------|----------|-----------|
+| `/api/reports/previews/it-projects-summary` | Сводка по проектам | — |
+| `/api/reports/previews/tasks-by-assignee` | Задачи исполнителя + итоги | `assigneeId` (обяз.) |
+| `/api/reports/previews/overdue-tasks` | Просроченные + сводка по проектам | — |
+| `/api/reports/previews/team-assignee-workload` | Загрузка команды | опционально `sprintId` |
+| `/api/reports/previews/it-projects-status-overview` | Статусы по проектам | — |
+
+---
+
 ## Автотесты UI
 
 Во фронтенде на ключевых элементах заданы **`data-testid`** с префиксом `upzit-` (см. исходники страниц). Дополнительно используются классы **`upzit-*`** рядом с существующими стилевыми классами.
