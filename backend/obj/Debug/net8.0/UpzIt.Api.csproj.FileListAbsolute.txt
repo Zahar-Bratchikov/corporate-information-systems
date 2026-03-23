@@ -1,0 +1,7 @@
+/home/zahar/Рабочий стол/study/corporate-information-systems/backend/obj/Debug/net8.0/UpzIt.Api.csproj.AssemblyReference.cache
+/home/zahar/Рабочий стол/study/corporate-information-systems/backend/obj/Debug/net8.0/UpzIt.Api.GeneratedMSBuildEditorConfig.editorconfig
+/home/zahar/Рабочий стол/study/corporate-information-systems/backend/obj/Debug/net8.0/UpzIt.Api.AssemblyInfoInputs.cache
+/home/zahar/Рабочий стол/study/corporate-information-systems/backend/obj/Debug/net8.0/UpzIt.Api.AssemblyInfo.cs
+/home/zahar/Рабочий стол/study/corporate-information-systems/backend/obj/Debug/net8.0/UpzIt.Api.csproj.CoreCompileInputs.cache
+/home/zahar/Рабочий стол/study/corporate-information-systems/backend/obj/Debug/net8.0/UpzIt.Api.MvcApplicationPartsAssemblyInfo.cache
+/home/zahar/Рабочий стол/study/corporate-information-systems/backend/obj/Debug/net8.0/UpzIt.Api.sourcelink.json
