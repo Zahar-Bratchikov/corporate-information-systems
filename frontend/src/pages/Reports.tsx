@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { api, apiBlob } from '../api'
 import { endpoints } from '../api/endpoints'
 import { useAuth } from '../AuthContext'
+import './Crud.css'
 import './Reports.css'
 
 interface User { id: number; fullName: string; roleName: string }
@@ -77,6 +79,22 @@ interface ProjectStatusesPreview {
   }>
 }
 
+type ReportPreviewModal =
+  | { kind: 'closed' }
+  | { kind: 'it-summary'; data: ItProjectsSummaryPreview }
+  | { kind: 'assignee'; data: AssigneeTasksPreview }
+  | { kind: 'overdue'; data: OverdueTasksPreview }
+  | { kind: 'team'; data: TeamWorkloadPreview }
+  | { kind: 'status'; data: ProjectStatusesPreview }
+
+const modalTitles: Record<Exclude<ReportPreviewModal['kind'], 'closed'>, string> = {
+  'it-summary': 'Сводный отчёт по IT-проектам',
+  assignee: 'Отчёт по задачам исполнителя',
+  overdue: 'Просроченные задачи',
+  team: 'Сводка по загрузке команды',
+  status: 'Статусы IT-проектов',
+}
+
 export default function Reports() {
   const { user } = useAuth()
   const [users, setUsers] = useState<User[]>([])
@@ -84,12 +102,7 @@ export default function Reports() {
   const [loading, setLoading] = useState(false)
   const [previewLoading, setPreviewLoading] = useState<string | null>(null)
   const [message, setMessage] = useState('')
-
-  const [itSummaryPreview, setItSummaryPreview] = useState<ItProjectsSummaryPreview | null>(null)
-  const [assigneePreview, setAssigneePreview] = useState<AssigneeTasksPreview | null>(null)
-  const [overduePreview, setOverduePreview] = useState<OverdueTasksPreview | null>(null)
-  const [teamPreview, setTeamPreview] = useState<TeamWorkloadPreview | null>(null)
-  const [statusPreview, setStatusPreview] = useState<ProjectStatusesPreview | null>(null)
+  const [previewModal, setPreviewModal] = useState<ReportPreviewModal>({ kind: 'closed' })
 
   useEffect(() => {
     void (async () => {
@@ -101,6 +114,15 @@ export default function Reports() {
       if (r2.data) setSprints(r2.data)
     })()
   }, [])
+
+  useEffect(() => {
+    if (previewModal.kind === 'closed') return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPreviewModal({ kind: 'closed' })
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [previewModal.kind])
 
   const download = async (path: string) => {
     setLoading(true)
@@ -118,24 +140,32 @@ export default function Reports() {
     URL.revokeObjectURL(a.href)
   }
 
-  const loadPreview = async <T,>(key: string, url: string, setData: (d: T | null) => void) => {
+  const closePreviewModal = () => setPreviewModal({ kind: 'closed' })
+
+  const loadPreview = async <T,>(
+    key: string,
+    url: string,
+    open: (data: T) => ReportPreviewModal
+  ) => {
     setPreviewLoading(key)
     setMessage('')
     const res = await api<T>(url)
     setPreviewLoading(null)
     if (res.error) {
       setMessage(res.error)
-      setData(null)
       return
     }
-    setData(res.data ?? null)
+    if (res.data != null) setPreviewModal(open(res.data))
   }
+
+  const modalKind = previewModal.kind
+  const modalTitle = modalKind !== 'closed' ? modalTitles[modalKind] : ''
 
   return (
     <div className="reports upzit-page upzit-page--reports" data-testid="upzit-reports-page">
       <h1 className="upzit-page-title">Отчёты</h1>
       <p className="reports-intro">
-        Данные для каждого отчёта можно <strong>посмотреть в браузере</strong> (кнопка «Показать в приложении») или выгрузить в файл — набор полей совпадает с экспортом.
+        Данные для каждого отчёта можно <strong>посмотреть в модальном окне</strong> (кнопка «Показать в приложении») или выгрузить в файл — набор полей совпадает с экспортом. Скрыть превью: кнопка «Скрыть превью» в блоке отчёта, пока окно открыто; в шапке модального окна — «Скрыть»; клик по затемнению вокруг окна; клавиша Esc.
       </p>
       {message && (
         <div className="reports-error upzit-reports-error" role="alert" data-testid="upzit-reports-message">
@@ -156,11 +186,26 @@ export default function Reports() {
             type="button"
             className="report-btn-secondary"
             disabled={previewLoading === 'it-summary'}
-            onClick={() => void loadPreview('it-summary', endpoints.reports.previews.itProjectsSummary, setItSummaryPreview)}
+            onClick={() =>
+              void loadPreview('it-summary', endpoints.reports.previews.itProjectsSummary, d => ({
+                kind: 'it-summary',
+                data: d as ItProjectsSummaryPreview,
+              }))
+            }
             data-testid="upzit-report-preview-it-projects-summary"
           >
             {previewLoading === 'it-summary' ? 'Загрузка…' : 'Показать в приложении'}
           </button>
+          {previewModal.kind === 'it-summary' && (
+            <button
+              type="button"
+              className="report-btn-hide-preview"
+              onClick={closePreviewModal}
+              data-testid="upzit-report-hide-preview-it-projects-summary"
+            >
+              Скрыть превью
+            </button>
+          )}
           <div className="report-actions upzit-report-actions">
             <button
               type="button"
@@ -178,38 +223,6 @@ export default function Reports() {
             </button>
           </div>
         </div>
-        {itSummaryPreview && (
-          <div className="report-preview" data-testid="upzit-report-preview-panel-it-projects-summary">
-            <table className="report-preview-table">
-              <thead>
-                <tr>
-                  <th>Проект</th>
-                  <th>Код</th>
-                  <th>Релиз</th>
-                  <th>Ответственный</th>
-                  <th>Всего</th>
-                  <th>Фича</th>
-                  <th>Баг</th>
-                  <th>Техн.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {itSummaryPreview.rows.map((row, i) => (
-                  <tr key={`${row.code}-${i}`}>
-                    <td>{row.name}</td>
-                    <td>{row.code}</td>
-                    <td>{row.releaseDate || '—'}</td>
-                    <td>{row.responsibleName || '—'}</td>
-                    <td>{row.totalTasks}</td>
-                    <td>{row.featureCount}</td>
-                    <td>{row.bugCount}</td>
-                    <td>{row.techTaskCount}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </section>
 
       <section className="report-block upzit-report-block" data-testid="upzit-report-block-tasks-by-assignee">
@@ -220,50 +233,16 @@ export default function Reports() {
           onDownload={download}
           currentUserId={user?.userId}
           previewLoading={previewLoading === 'assignee'}
+          previewVisible={previewModal.kind === 'assignee'}
+          onHidePreview={closePreviewModal}
           onPreview={assigneeId =>
             void loadPreview(
               'assignee',
               endpoints.reports.previews.tasksByAssignee(assigneeId),
-              setAssigneePreview
+              d => ({ kind: 'assignee', data: d as AssigneeTasksPreview })
             )
           }
         />
-        {assigneePreview && (
-          <div className="report-preview" data-testid="upzit-report-preview-panel-assignee">
-            <p className="report-preview-caption">
-              <strong>{assigneePreview.assigneeName}</strong>
-              {assigneePreview.assigneeRole ? ` — ${assigneePreview.assigneeRole}` : ''}
-            </p>
-            <p className="report-preview-summary">
-              Всего: {assigneePreview.total}, в работе: {assigneePreview.inProgress}, выполнено: {assigneePreview.completed}, доля
-              выполненных: {assigneePreview.completedPct.toFixed(1)}%
-            </p>
-            <table className="report-preview-table">
-              <thead>
-                <tr>
-                  <th>Название</th>
-                  <th>Тип</th>
-                  <th>Проект</th>
-                  <th>Срок</th>
-                  <th>Статус</th>
-                  <th>Приоритет</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assigneePreview.tasks.map((t, i) => (
-                  <tr key={`${t.title}-${i}`}>
-                    <td>{t.title}</td>
-                    <td>{t.typeName}</td>
-                    <td>{t.projectName}</td>
-                    <td>{t.dueDate || '—'}</td>
-                    <td>{t.statusName}</td>
-                    <td>{t.priorityName}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </section>
 
       <section className="report-block upzit-report-block" data-testid="upzit-report-block-overdue-tasks">
@@ -274,11 +253,26 @@ export default function Reports() {
             type="button"
             className="report-btn-secondary"
             disabled={previewLoading === 'overdue'}
-            onClick={() => void loadPreview('overdue', endpoints.reports.previews.overdueTasks, setOverduePreview)}
+            onClick={() =>
+              void loadPreview('overdue', endpoints.reports.previews.overdueTasks, d => ({
+                kind: 'overdue',
+                data: d as OverdueTasksPreview,
+              }))
+            }
             data-testid="upzit-report-preview-overdue-tasks"
           >
             {previewLoading === 'overdue' ? 'Загрузка…' : 'Показать в приложении'}
           </button>
+          {previewModal.kind === 'overdue' && (
+            <button
+              type="button"
+              className="report-btn-hide-preview"
+              onClick={closePreviewModal}
+              data-testid="upzit-report-hide-preview-overdue"
+            >
+              Скрыть превью
+            </button>
+          )}
           <div className="report-actions upzit-report-actions">
             <button
               type="button"
@@ -296,54 +290,6 @@ export default function Reports() {
             </button>
           </div>
         </div>
-        {overduePreview && (
-          <div className="report-preview" data-testid="upzit-report-preview-panel-overdue">
-            <h3 className="report-preview-subtitle">Задачи</h3>
-            <table className="report-preview-table">
-              <thead>
-                <tr>
-                  <th>Название</th>
-                  <th>Тип</th>
-                  <th>Проект</th>
-                  <th>Исполнитель</th>
-                  <th>Дедлайн</th>
-                  <th>Статус</th>
-                  <th>Дней просрочки</th>
-                </tr>
-              </thead>
-              <tbody>
-                {overduePreview.tasks.map((t, i) => (
-                  <tr key={`${t.title}-${i}`}>
-                    <td>{t.title}</td>
-                    <td>{t.typeName}</td>
-                    <td>{t.projectName}</td>
-                    <td>{t.assigneeName || '—'}</td>
-                    <td>{t.dueDate}</td>
-                    <td>{t.statusName}</td>
-                    <td>{t.daysOverdue}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <h3 className="report-preview-subtitle">Сводка по проектам</h3>
-            <table className="report-preview-table report-preview-table--compact">
-              <thead>
-                <tr>
-                  <th>Проект</th>
-                  <th>Просрочено</th>
-                </tr>
-              </thead>
-              <tbody>
-                {overduePreview.byProject.map((b, i) => (
-                  <tr key={`${b.project}-${i}`}>
-                    <td>{b.project}</td>
-                    <td>{b.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </section>
 
       <section className="report-block upzit-report-block" data-testid="upzit-report-block-team-workload">
@@ -353,48 +299,16 @@ export default function Reports() {
           sprints={sprints}
           onDownload={download}
           previewLoading={previewLoading === 'team'}
+          previewVisible={previewModal.kind === 'team'}
+          onHidePreview={closePreviewModal}
           onPreview={sprintId =>
             void loadPreview(
               'team',
               endpoints.reports.previews.teamAssigneeWorkload(sprintId || undefined),
-              setTeamPreview
+              d => ({ kind: 'team', data: d as TeamWorkloadPreview })
             )
           }
         />
-        {teamPreview && (
-          <div className="report-preview" data-testid="upzit-report-preview-panel-team">
-            <table className="report-preview-table">
-              <thead>
-                <tr>
-                  <th>ФИО</th>
-                  <th>Роль</th>
-                  <th>Новая</th>
-                  <th>В работе</th>
-                  <th>В тест.</th>
-                  <th>Выполнена</th>
-                  <th>Отложена</th>
-                  <th>Всего</th>
-                  <th>% заверш.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {teamPreview.rows.map((r, i) => (
-                  <tr key={`${r.fullName}-${i}`}>
-                    <td>{r.fullName}</td>
-                    <td>{r.roleName}</td>
-                    <td>{r.newTasks}</td>
-                    <td>{r.inProgress}</td>
-                    <td>{r.inTest}</td>
-                    <td>{r.done}</td>
-                    <td>{r.postponed}</td>
-                    <td>{r.total}</td>
-                    <td>{r.completedPct.toFixed(1)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </section>
 
       <section className="report-block upzit-report-block" data-testid="upzit-report-block-it-projects-status">
@@ -409,13 +323,23 @@ export default function Reports() {
               void loadPreview(
                 'status',
                 endpoints.reports.previews.itProjectsStatusOverview,
-                setStatusPreview
+                d => ({ kind: 'status', data: d as ProjectStatusesPreview })
               )
             }
             data-testid="upzit-report-preview-it-projects-status"
           >
             {previewLoading === 'status' ? 'Загрузка…' : 'Показать в приложении'}
           </button>
+          {previewModal.kind === 'status' && (
+            <button
+              type="button"
+              className="report-btn-hide-preview"
+              onClick={closePreviewModal}
+              data-testid="upzit-report-hide-preview-it-projects-status"
+            >
+              Скрыть превью
+            </button>
+          )}
           <div className="report-actions upzit-report-actions">
             <button
               type="button"
@@ -433,39 +357,225 @@ export default function Reports() {
             </button>
           </div>
         </div>
-        {statusPreview && (
-          <div className="report-preview" data-testid="upzit-report-preview-panel-it-projects-status">
-            <table className="report-preview-table">
-              <thead>
-                <tr>
-                  <th>Проект</th>
-                  <th>Код</th>
-                  <th>Ответственный</th>
-                  <th>Всего</th>
-                  <th>Выполнена</th>
-                  <th>В работе</th>
-                  <th>Просрочено</th>
-                  <th>% выполн.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {statusPreview.rows.map((r, i) => (
-                  <tr key={`${r.code}-${i}`}>
-                    <td>{r.name}</td>
-                    <td>{r.code}</td>
-                    <td>{r.responsibleName || '—'}</td>
-                    <td>{r.total}</td>
-                    <td>{r.done}</td>
-                    <td>{r.inWork}</td>
-                    <td>{r.overdue}</td>
-                    <td>{r.donePct.toFixed(1)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </section>
+
+      {previewModal.kind !== 'closed' &&
+        createPortal(
+          <div
+            className="modal-overlay upzit-modal-overlay upzit-report-modal-overlay"
+            data-testid="upzit-report-preview-modal-overlay"
+            onClick={closePreviewModal}
+            role="presentation"
+          >
+          <div
+            className="modal modal-wide report-preview-modal upzit-modal upzit-report-preview-modal"
+            data-testid="upzit-report-preview-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="upzit-report-preview-modal-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="report-preview-modal-head">
+              <h2 id="upzit-report-preview-modal-title" data-testid="upzit-report-preview-modal-title">
+                {modalTitle}
+              </h2>
+              <button
+                type="button"
+                className="upzit-btn upzit-btn--secondary report-preview-modal-close"
+                data-testid="upzit-report-preview-modal-close"
+                onClick={closePreviewModal}
+              >
+                Скрыть
+              </button>
+            </div>
+            <div className="report-preview-modal-body" data-testid="upzit-report-preview-modal-body">
+              {previewModal.kind === 'it-summary' && (
+                <div data-testid="upzit-report-preview-panel-it-projects-summary">
+                  <table className="report-preview-table">
+                    <thead>
+                      <tr>
+                        <th>Проект</th>
+                        <th>Код</th>
+                        <th>Релиз</th>
+                        <th>Ответственный</th>
+                        <th>Всего</th>
+                        <th>Фича</th>
+                        <th>Баг</th>
+                        <th>Техн.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewModal.data.rows.map((row, i) => (
+                        <tr key={`${row.code}-${i}`}>
+                          <td>{row.name}</td>
+                          <td>{row.code}</td>
+                          <td>{row.releaseDate || '—'}</td>
+                          <td>{row.responsibleName || '—'}</td>
+                          <td>{row.totalTasks}</td>
+                          <td>{row.featureCount}</td>
+                          <td>{row.bugCount}</td>
+                          <td>{row.techTaskCount}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {previewModal.kind === 'assignee' && (
+                <div data-testid="upzit-report-preview-panel-assignee">
+                  <p className="report-preview-caption">
+                    <strong>{previewModal.data.assigneeName}</strong>
+                    {previewModal.data.assigneeRole ? ` — ${previewModal.data.assigneeRole}` : ''}
+                  </p>
+                  <p className="report-preview-summary">
+                    Всего: {previewModal.data.total}, в работе: {previewModal.data.inProgress}, выполнено:{' '}
+                    {previewModal.data.completed}, доля выполненных: {previewModal.data.completedPct.toFixed(1)}%
+                  </p>
+                  <table className="report-preview-table">
+                    <thead>
+                      <tr>
+                        <th>Название</th>
+                        <th>Тип</th>
+                        <th>Проект</th>
+                        <th>Срок</th>
+                        <th>Статус</th>
+                        <th>Приоритет</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewModal.data.tasks.map((t, i) => (
+                        <tr key={`${t.title}-${i}`}>
+                          <td>{t.title}</td>
+                          <td>{t.typeName}</td>
+                          <td>{t.projectName}</td>
+                          <td>{t.dueDate || '—'}</td>
+                          <td>{t.statusName}</td>
+                          <td>{t.priorityName}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {previewModal.kind === 'overdue' && (
+                <div data-testid="upzit-report-preview-panel-overdue">
+                  <h3 className="report-preview-subtitle">Задачи</h3>
+                  <table className="report-preview-table">
+                    <thead>
+                      <tr>
+                        <th>Название</th>
+                        <th>Тип</th>
+                        <th>Проект</th>
+                        <th>Исполнитель</th>
+                        <th>Дедлайн</th>
+                        <th>Статус</th>
+                        <th>Дней просрочки</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewModal.data.tasks.map((t, i) => (
+                        <tr key={`${t.title}-${i}`}>
+                          <td>{t.title}</td>
+                          <td>{t.typeName}</td>
+                          <td>{t.projectName}</td>
+                          <td>{t.assigneeName || '—'}</td>
+                          <td>{t.dueDate}</td>
+                          <td>{t.statusName}</td>
+                          <td>{t.daysOverdue}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <h3 className="report-preview-subtitle">Сводка по проектам</h3>
+                  <table className="report-preview-table report-preview-table--compact">
+                    <thead>
+                      <tr>
+                        <th>Проект</th>
+                        <th>Просрочено</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewModal.data.byProject.map((b, i) => (
+                        <tr key={`${b.project}-${i}`}>
+                          <td>{b.project}</td>
+                          <td>{b.count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {previewModal.kind === 'team' && (
+                <div data-testid="upzit-report-preview-panel-team">
+                  <table className="report-preview-table">
+                    <thead>
+                      <tr>
+                        <th>ФИО</th>
+                        <th>Роль</th>
+                        <th>Новая</th>
+                        <th>В работе</th>
+                        <th>В тест.</th>
+                        <th>Выполнена</th>
+                        <th>Отложена</th>
+                        <th>Всего</th>
+                        <th>% заверш.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewModal.data.rows.map((r, i) => (
+                        <tr key={`${r.fullName}-${i}`}>
+                          <td>{r.fullName}</td>
+                          <td>{r.roleName}</td>
+                          <td>{r.newTasks}</td>
+                          <td>{r.inProgress}</td>
+                          <td>{r.inTest}</td>
+                          <td>{r.done}</td>
+                          <td>{r.postponed}</td>
+                          <td>{r.total}</td>
+                          <td>{r.completedPct.toFixed(1)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {previewModal.kind === 'status' && (
+                <div data-testid="upzit-report-preview-panel-it-projects-status">
+                  <table className="report-preview-table">
+                    <thead>
+                      <tr>
+                        <th>Проект</th>
+                        <th>Код</th>
+                        <th>Ответственный</th>
+                        <th>Всего</th>
+                        <th>Выполнена</th>
+                        <th>В работе</th>
+                        <th>Просрочено</th>
+                        <th>% выполн.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewModal.data.rows.map((r, i) => (
+                        <tr key={`${r.code}-${i}`}>
+                          <td>{r.name}</td>
+                          <td>{r.code}</td>
+                          <td>{r.responsibleName || '—'}</td>
+                          <td>{r.total}</td>
+                          <td>{r.done}</td>
+                          <td>{r.inWork}</td>
+                          <td>{r.overdue}</td>
+                          <td>{r.donePct.toFixed(1)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+          document.body
+        )}
     </div>
   )
 }
@@ -476,12 +586,16 @@ function AssigneeReportForm({
   currentUserId,
   onPreview,
   previewLoading,
+  previewVisible,
+  onHidePreview,
 }: {
   users: User[]
   onDownload: (path: string) => void
   currentUserId?: number
   onPreview: (assigneeId: number) => void
   previewLoading: boolean
+  previewVisible: boolean
+  onHidePreview: () => void
 }) {
   const [assigneeId, setAssigneeId] = useState(currentUserId?.toString() ?? '')
   const [format, setFormat] = useState<'xlsx' | 'docx' | 'pdf'>('xlsx')
@@ -547,6 +661,16 @@ function AssigneeReportForm({
         >
           {previewLoading ? 'Загрузка…' : 'Показать в приложении'}
         </button>
+        {previewVisible && (
+          <button
+            type="button"
+            className="report-btn-hide-preview"
+            onClick={onHidePreview}
+            data-testid="upzit-report-hide-preview-assignee"
+          >
+            Скрыть превью
+          </button>
+        )}
         <button type="button" onClick={handleDownload} data-testid="upzit-report-assignee-download">
           Скачать
         </button>
@@ -560,11 +684,15 @@ function TeamWorkloadForm({
   onDownload,
   onPreview,
   previewLoading,
+  previewVisible,
+  onHidePreview,
 }: {
   sprints: Sprint[]
   onDownload: (path: string) => void
   onPreview: (sprintId: string) => void
   previewLoading: boolean
+  previewVisible: boolean
+  onHidePreview: () => void
 }) {
   const [sprintId, setSprintId] = useState('')
   const [format, setFormat] = useState<'xlsx' | 'docx'>('xlsx')
@@ -611,6 +739,16 @@ function TeamWorkloadForm({
         >
           {previewLoading ? 'Загрузка…' : 'Показать в приложении'}
         </button>
+        {previewVisible && (
+          <button
+            type="button"
+            className="report-btn-hide-preview"
+            onClick={onHidePreview}
+            data-testid="upzit-report-hide-preview-team"
+          >
+            Скрыть превью
+          </button>
+        )}
         <button type="button" onClick={handleDownload} data-testid="upzit-report-team-workload-download">
           Скачать
         </button>
