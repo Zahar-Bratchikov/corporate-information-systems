@@ -51,4 +51,20 @@ test.describe('API: projects', () => {
     const created = await res.json()
     expect(created).toMatchObject({ code, name: 'Playwright API project' })
   })
+
+  test('POST create with duplicate code returns 400 (ТЗ: ошибочный ввод)', async ({ request }) => {
+    const token = await obtainJwt(request, 'pm_sidorov', 'password')
+    const res = await request.post(endpoints.projects.list, {
+      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+      data: {
+        name: 'Дубликат',
+        code: 'PORTAL',
+        releaseDate: '2026-01-01',
+        responsibleId: 2,
+      },
+    })
+    expect(res.status()).toBe(400)
+    const body = await res.json()
+    expect(body).toHaveProperty('error')
+  })
 })
