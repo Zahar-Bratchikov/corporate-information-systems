@@ -451,43 +451,88 @@ public class ReportService : IReportService
     private static byte[] BuildOverduePdf(IReadOnlyList<OverdueTaskRowDto> tasks, IReadOnlyList<OverdueByProjectDto> byProject)
     {
         QuestPDF.Settings.License = LicenseType.Community;
+        const int maxRowsPerPage = 35;
+        var taskPages = new List<IReadOnlyList<OverdueTaskRowDto>>();
+        if (tasks.Count == 0)
+            taskPages.Add(Array.Empty<OverdueTaskRowDto>());
+        else
+        {
+            foreach (var chunk in tasks.Chunk(maxRowsPerPage))
+                taskPages.Add(chunk.ToArray());
+        }
+
         var doc = QuestPdfDocument.Create(c =>
         {
+            for (var pageIndex = 0; pageIndex < taskPages.Count; pageIndex++)
+            {
+                var slice = taskPages[pageIndex];
+                var headerText = pageIndex == 0
+                    ? "Отчёт по просроченным задачам"
+                    : "Отчёт по просроченным задачам (продолжение)";
+                c.Page(p =>
+                {
+                    p.Header().Text(headerText).Bold().FontSize(14);
+                    p.Content().Table(t =>
+                    {
+                        t.ColumnsDefinition(cd =>
+                        {
+                            cd.RelativeColumn(2);
+                            cd.RelativeColumn();
+                            cd.RelativeColumn();
+                            cd.RelativeColumn();
+                            cd.ConstantColumn(60);
+                            cd.RelativeColumn();
+                            cd.ConstantColumn(50);
+                        });
+                        t.Header(h =>
+                        {
+                            h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Название");
+                            h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Тип");
+                            h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Проект");
+                            h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Исполнитель");
+                            h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Дедлайн");
+                            h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Статус");
+                            h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Дней просрочки");
+                        });
+                        if (slice.Count == 0)
+                            t.Cell().ColumnSpan(7).Padding(4).Text("Просроченных задач нет.");
+                        else
+                        {
+                            foreach (var row in slice)
+                            {
+                                t.Cell().Padding(4).Text(row.Title);
+                                t.Cell().Padding(4).Text(row.TypeName);
+                                t.Cell().Padding(4).Text(row.ProjectName);
+                                t.Cell().Padding(4).Text(row.AssigneeName);
+                                t.Cell().Padding(4).Text(row.DueDate);
+                                t.Cell().Padding(4).Text(row.StatusName);
+                                t.Cell().Padding(4).Text(row.DaysOverdue.ToString());
+                            }
+                        }
+                    });
+                });
+            }
+
             c.Page(p =>
             {
-                p.Header().Text("Отчёт по просроченным задачам").Bold().FontSize(14);
-                p.Content().Table(t =>
-                {
-                    t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(); cd.RelativeColumn(); cd.RelativeColumn(); cd.ConstantColumn(60); cd.RelativeColumn(); cd.ConstantColumn(50); });
-                    t.Header(h =>
-                    {
-                        h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Название");
-                        h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Тип");
-                        h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Проект");
-                        h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Исполнитель");
-                        h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Дедлайн");
-                        h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Статус");
-                        h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Дней просрочки");
-                    });
-                    foreach (var row in tasks)
-                    {
-                        t.Cell().Padding(4).Text(row.Title);
-                        t.Cell().Padding(4).Text(row.TypeName);
-                        t.Cell().Padding(4).Text(row.ProjectName);
-                        t.Cell().Padding(4).Text(row.AssigneeName);
-                        t.Cell().Padding(4).Text(row.DueDate);
-                        t.Cell().Padding(4).Text(row.StatusName);
-                        t.Cell().Padding(4).Text(row.DaysOverdue.ToString());
-                    }
-                });
-                p.Content().PaddingVertical(10).Text("Сводка по проектам:").Bold();
+                p.Header().Text("Отчёт по просроченным задачам — сводка по проектам").Bold().FontSize(14);
                 p.Content().Table(t2 =>
                 {
                     t2.ColumnsDefinition(cd => { cd.RelativeColumn(); cd.ConstantColumn(80); });
-                    foreach (var row in byProject)
+                    t2.Header(h =>
                     {
-                        t2.Cell().Padding(4).Text(row.Project);
-                        t2.Cell().Padding(4).Text(row.Count.ToString());
+                        h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Проект");
+                        h.Cell().Background(Colors.Grey.Lighten2).Padding(4).Text("Кол-во");
+                    });
+                    if (byProject.Count == 0)
+                        t2.Cell().ColumnSpan(2).Padding(4).Text("Нет данных");
+                    else
+                    {
+                        foreach (var row in byProject)
+                        {
+                            t2.Cell().Padding(4).Text(row.Project);
+                            t2.Cell().Padding(4).Text(row.Count.ToString());
+                        }
                     }
                 });
             });

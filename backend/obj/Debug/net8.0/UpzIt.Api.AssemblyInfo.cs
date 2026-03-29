@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("UpzIt.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2710bbfab5af3265b3ff7f409d6485e2e4e0f179")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0b40a80a378ce87b58fada7041a20d781fd44a4a")]
 [assembly: System.Reflection.AssemblyProductAttribute("UpzIt.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("UpzIt.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

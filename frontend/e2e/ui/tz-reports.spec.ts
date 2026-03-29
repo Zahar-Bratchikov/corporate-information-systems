@@ -88,4 +88,147 @@ test.describe('ТЗ §2.2.4 Отчёты (превью в UI и файлы)', ()
     expect(download.suggestedFilename().toLowerCase()).toMatch(/\.xlsx$/)
     annotateTzPassed(testInfo)
   })
+
+  test('TC-RPT-004 — отчёт по исполнителю Word и PDF', async ({ page }, testInfo) => {
+    annotateTzCase(testInfo, {
+      tcId: 'TC-RPT-004',
+      reportSection: '2.2.4 Отчёты',
+      testedFunction: 'Генерация отчёта исполнителя в docx и pdf через UI',
+      inputs: 'Первый исполнитель в списке; формат Word / PDF',
+      expected: 'Скачиваются .docx и .pdf',
+    })
+    await login(page)
+    await page.getByTestId('upzit-nav-reports').click()
+    await page.getByTestId('upzit-report-select-assignee').selectOption({ index: 1 })
+
+    await page.getByTestId('upzit-report-select-assignee-format').selectOption('docx')
+    const [dlDocx] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      page.getByTestId('upzit-report-assignee-download').click(),
+    ])
+    expect(dlDocx.suggestedFilename().toLowerCase()).toMatch(/\.docx$/)
+
+    await page.getByTestId('upzit-report-select-assignee-format').selectOption('pdf')
+    const [dlPdf] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      page.getByTestId('upzit-report-assignee-download').click(),
+    ])
+    expect(dlPdf.suggestedFilename().toLowerCase()).toMatch(/\.pdf$/)
+    annotateTzPassed(testInfo)
+  })
+
+  test('TC-RPT-020 — просроченные задачи: Excel и PDF', async ({ page }, testInfo) => {
+    annotateTzCase(testInfo, {
+      tcId: 'TC-RPT-020',
+      reportSection: '2.2.4 Отчёты',
+      testedFunction: 'Выгрузка отчёта просроченных задач',
+      inputs: 'Кнопки скачивания в блоке 3',
+      expected: 'Файлы .xlsx и .pdf',
+    })
+    await login(page)
+    await page.getByTestId('upzit-nav-reports').click()
+    const [xlsx] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      page.getByTestId('upzit-report-overdue-tasks-xlsx').click(),
+    ])
+    expect(xlsx.suggestedFilename().toLowerCase()).toMatch(/\.xlsx$/)
+    const xlsxPath = await xlsx.path()
+    if (xlsxPath) {
+      const fs = await import('node:fs')
+      expect(fs.statSync(xlsxPath).size).toBeGreaterThan(64)
+    }
+    const [pdf] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      page.getByTestId('upzit-report-overdue-tasks-pdf').click(),
+    ])
+    expect(pdf.suggestedFilename().toLowerCase()).toMatch(/\.pdf$/)
+    annotateTzPassed(testInfo)
+  })
+
+  test('TC-RPT-021 — загрузка команды: Excel и Word', async ({ page }, testInfo) => {
+    annotateTzCase(testInfo, {
+      tcId: 'TC-RPT-021',
+      reportSection: '2.2.4 Отчёты',
+      testedFunction: 'Выгрузка сводки по загрузке команды',
+      inputs: 'Блок 4; формат xlsx и docx',
+      expected: 'Скачиваются .xlsx и .docx',
+    })
+    await login(page)
+    await page.getByTestId('upzit-nav-reports').click()
+    await page.getByTestId('upzit-report-select-team-format').selectOption('xlsx')
+    const [xlsx] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      page.getByTestId('upzit-report-team-workload-download').click(),
+    ])
+    expect(xlsx.suggestedFilename().toLowerCase()).toMatch(/\.xlsx$/)
+    await page.getByTestId('upzit-report-select-team-format').selectOption('docx')
+    const [docx] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      page.getByTestId('upzit-report-team-workload-download').click(),
+    ])
+    expect(docx.suggestedFilename().toLowerCase()).toMatch(/\.docx$/)
+    annotateTzPassed(testInfo)
+  })
+
+  test('TC-RPT-022 — статусы IT-проектов: Word и PDF', async ({ page }, testInfo) => {
+    annotateTzCase(testInfo, {
+      tcId: 'TC-RPT-022',
+      reportSection: '2.2.4 Отчёты',
+      testedFunction: 'Выгрузка отчёта по статусам проектов',
+      inputs: 'Блок 5; кнопки Word и PDF',
+      expected: 'Файлы .docx и .pdf',
+    })
+    await login(page)
+    await page.getByTestId('upzit-nav-reports').click()
+    const [docx] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      page.getByTestId('upzit-report-it-projects-status-docx').click(),
+    ])
+    expect(docx.suggestedFilename().toLowerCase()).toMatch(/\.docx$/)
+    const [pdf] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      page.getByTestId('upzit-report-it-projects-status-pdf').click(),
+    ])
+    expect(pdf.suggestedFilename().toLowerCase()).toMatch(/\.pdf$/)
+    annotateTzPassed(testInfo)
+  })
+
+  test('TC-RPT-PREVIEW-ALL — превью всех пяти отчётов открывается', async ({ page }, testInfo) => {
+    annotateTzCase(testInfo, {
+      tcId: 'TC-RPT-PREVIEW-ALL',
+      reportSection: '2.2.4 Отчёты',
+      testedFunction: 'Проверка загрузки JSON-превью в модальном окне для каждого отчёта',
+      inputs: 'admin; по очереди «Показать в приложении» в блоках 1–5',
+      expected: 'Модальное окно с панелью, соответствующей отчёту',
+    })
+    await login(page)
+    await page.getByTestId('upzit-nav-reports').click()
+
+    await page.getByTestId('upzit-report-preview-it-projects-summary').click()
+    await expect(page.getByTestId('upzit-report-preview-panel-it-projects-summary')).toBeVisible({
+      timeout: 20_000,
+    })
+    await page.getByTestId('upzit-report-preview-modal-close').click()
+
+    await page.getByTestId('upzit-report-select-assignee').selectOption({ index: 1 })
+    await page.getByTestId('upzit-report-assignee-preview').click()
+    await expect(page.getByTestId('upzit-report-preview-panel-assignee')).toBeVisible({ timeout: 20_000 })
+    await page.getByTestId('upzit-report-preview-modal-close').click()
+
+    await page.getByTestId('upzit-report-preview-overdue-tasks').click()
+    await expect(page.getByTestId('upzit-report-preview-panel-overdue')).toBeVisible({ timeout: 20_000 })
+    await page.getByTestId('upzit-report-preview-modal-close').click()
+
+    await page.getByTestId('upzit-report-team-workload-preview').click()
+    await expect(page.getByTestId('upzit-report-preview-panel-team')).toBeVisible({ timeout: 20_000 })
+    await page.getByTestId('upzit-report-preview-modal-close').click()
+
+    await page.getByTestId('upzit-report-preview-it-projects-status').click()
+    await expect(page.getByTestId('upzit-report-preview-panel-it-projects-status')).toBeVisible({
+      timeout: 20_000,
+    })
+    await page.getByTestId('upzit-report-preview-modal-close').click()
+
+    annotateTzPassed(testInfo)
+  })
 })
